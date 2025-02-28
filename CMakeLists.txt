@@ -1,26 +1,32 @@
 cmake_minimum_required(VERSION 3.10)
-
-# Set the project name
+set(CMAKE_CXX_STANDARD 17)
 project(SdfTask CXX)
 
-# Find the SDL2 library
 find_package(SDL2 REQUIRED)
+add_library(
+  LiteMath
+    ${CMAKE_SOURCE_DIR}/external/LiteMath/Image2d.cpp)
+target_include_directories(LiteMath PUBLIC ${CMAKE_SOURCE_DIR}/external/)
 
-# Include SDL2 headers
-include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/LiteMath/external)
-include_directories(${SDL2_INCLUDE_DIRS})
+set(
+  SRC_CORE 
+    ${CMAKE_SOURCE_DIR}/src/core/mesh.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/mesh.h 
+    ${CMAKE_SOURCE_DIR}/src/core/tiny_obj_loader.h)
 
-add_compile_definitions(USE_STB_IMAGE)
+set( 
+  SRC_VIEWER
+    ${CMAKE_SOURCE_DIR}/src/main.cpp)
 
-# Add the executable
-add_executable(render
-    main.cpp
-    mesh.cpp
-    LiteMath/Image2d.cpp)
-
-# Link the SDL2 library to the executable
-target_link_libraries(render ${SDL2_LIBRARIES})
-
-# Set path to executable
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR})
+set(APP_NAME GUIApplication)
+add_executable(
+  ${APP_NAME}
+    ${SRC_CORE}
+    ${SRC_VIEWER})
+target_link_libraries(${APP_NAME} ${SDL2_LIBRARIES} LiteMath)
+target_include_directories(
+    ${APP_NAME} PUBLIC 
+      ${SDL2_INCLUDE_DIRS} 
+      ${CMAKE_SOURCE_DIR}/src/core
+      ${CMAKE_SOURCE_DIR}/src/
+      ${CMAKE_SOURCE_DIR}/external/stb/)

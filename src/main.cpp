@@ -1,22 +1,25 @@
-#include "LiteMath/LiteMath.h"
-#include "LiteMath/Image2d.h"
+#ifndef linux
+static_assert(false, "This code is valid for Ubuntu x64 linux");
+#endif
 
-// stb_image is a single-header C library, which means one of your cpp files must have
-//    #define STB_IMAGE_IMPLEMENTATION
-//    #define STB_IMAGE_WRITE_IMPLEMENTATION
-// since Image2d already defines the implementation, we don't need to do that here.
-#include "stb_image.h"
-#include "stb_image_write.h"
-
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image.h>
+#include <stb_image_write.h>
 #include <SDL_keycode.h>
+#include <SDL.h>
+#include <LiteMath/LiteMath.h>
+#include <LiteMath/Image2d.h>
+
 #include <cstdint>
 #include <iostream>
 #include <fstream>
-#include <SDL.h>
+#include <filesystem>
+#include <unistd.h>
 
 #include "mesh.h"
-using namespace cmesh4;
 
+using namespace cmesh4;
 using LiteMath::float2;
 using LiteMath::float3;
 using LiteMath::float4;
@@ -154,16 +157,27 @@ void save_frame(const char* filename, const std::vector<uint32_t>& frame, uint32
 // You must include the command line parameters for your main function to be recognized by SDL
 int main(int argc, char **args)
 {
-  const int SCREEN_WIDTH = 960;
-  const int SCREEN_HEIGHT = 960;
+  std::filesystem::path exec_path;
+  {
+    char path_cstr[PATH_MAX+1] = {};
+    std::ignore = readlink("/proc/self/exe", path_cstr, PATH_MAX);
+    exec_path = path_cstr;
+  }
+  auto project_path = exec_path.parent_path().parent_path();
+  std::filesystem::current_path(project_path);
+  auto resources_path = project_path / "resources";
+
+  const int SCREEN_WIDTH = 1280;
+  const int SCREEN_HEIGHT = 720;
 
   // Pixel buffer (RGBA format)
   std::vector<uint32_t> pixels(SCREEN_WIDTH * SCREEN_HEIGHT, 0xFFFFFFFF); // Initialize with white pixels
   AppData app_data;
   app_data.width = SCREEN_WIDTH;
   app_data.height = SCREEN_HEIGHT;
-  load_sdf_grid(app_data.loaded_grid, "example_grid.grid");
+  
 
+  load_sdf_grid(app_data.loaded_grid, resources_path / "example_grid.grid");
   // Initialize SDL. SDL_Init will return -1 if it fails.
   if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
   {
@@ -172,7 +186,7 @@ int main(int argc, char **args)
   }
 
   // Create our window
-  SDL_Window *window = SDL_CreateWindow("SDF Viewer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+  SDL_Window *window = SDL_CreateWindow("Triangle/SDF Viewer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                                         SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 
   // Make sure creating the window succeeded
@@ -183,7 +197,7 @@ int main(int argc, char **args)
   }
 
   // Create a renderer
-  SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+  SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
   if (!renderer)
   {
     std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
