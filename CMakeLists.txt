@@ -50,3 +50,4 @@ target_include_directories(
       ${CMAKE_SOURCE_DIR}/src/core
       ${CMAKE_SOURCE_DIR}/src/
       ${CMAKE_SOURCE_DIR}/external/stb/)
+target_compile_options(${APP_NAME} PRIVATE -Wall -Wextra -Wshadow -Wconversion -Werror)

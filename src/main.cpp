@@ -2,8 +2,6 @@
 static_assert(false, "This code is valid for Ubuntu x64 linux");
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
@@ -11,9 +9,6 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <LiteMath/LiteMath.h>
 #include <SDL.h>
 #include <SDL_keycode.h>
-#include <stb_image.h>
-#include <stb_image_write.h>
-
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
