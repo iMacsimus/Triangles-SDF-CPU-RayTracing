@@ -1,3 +1,6 @@
 [submodule "LiteMath"]
 	path = external/LiteMath
 	url = https://github.com/msu-graphics-group/LiteMath
+[submodule "external/ImGui"]
+	path = external/ImGui
+	url = https://github.com/ocornut/imgui.git
