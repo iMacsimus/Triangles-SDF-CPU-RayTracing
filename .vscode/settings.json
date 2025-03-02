@@ -1,9 +1,0 @@
-{
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-  "cmake.debugConfig": {
-    "cwd": "${workspaceFolder}",
-  },
-  "files.associations": {
-    "string_view": "cpp"
-  }
-}

@@ -17,11 +17,11 @@ public:
   SDLManager &operator=(SDLManager &&) = delete;
 
 public:
-  static SDLManager &getInstance();
+  static SDLManager &getInstance() noexcept;
   void tryToInitialize(uint32_t flags);
 
 private:
-  SDLManager() = default;
+  SDLManager() noexcept = default;
   bool m_isInitialized = false;
   std::mutex m_FlagLock;
 

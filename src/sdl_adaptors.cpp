@@ -1,8 +1,8 @@
-#include "sdl_adaptor.hpp"
+#include "sdl_adaptors.hpp"
 
 namespace sdl_adapters {
 
-SDLManager &SDLManager::getInstance() {
+SDLManager &SDLManager::getInstance() noexcept {
   static SDLManager instance;
   return instance;
 }
