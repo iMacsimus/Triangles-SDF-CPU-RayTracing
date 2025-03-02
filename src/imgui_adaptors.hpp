@@ -42,7 +42,8 @@ public:
 };
 
 struct WindowGuard {
-  WindowGuard(const char *name, bool *p_open = nullptr, ImGuiWindowFlags flags = 0) noexcept;
+  WindowGuard(const char *name, bool *p_open = nullptr,
+              ImGuiWindowFlags flags = 0) noexcept;
   ~WindowGuard();
 };
 

@@ -1,11 +1,12 @@
 #pragma once
 
-#include <SDL2/SDL.h>
 #include <cinttypes>
 #include <exception>
 #include <memory>
 #include <mutex>
 #include <string_view>
+
+#include <SDL2/SDL.h>
 
 namespace sdl_adapters {
 

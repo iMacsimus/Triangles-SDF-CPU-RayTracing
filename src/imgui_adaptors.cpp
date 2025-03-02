@@ -31,13 +31,11 @@ BackendManager::~BackendManager() {
   }
 }
 
-WindowGuard::WindowGuard(const char *name, bool *p_open, ImGuiWindowFlags flags) noexcept
-{
+WindowGuard::WindowGuard(const char *name, bool *p_open,
+                         ImGuiWindowFlags flags) noexcept {
   ImGui::Begin(name, p_open, flags);
 }
 
-WindowGuard::~WindowGuard() {
-  ImGui::End();
-}
+WindowGuard::~WindowGuard() { ImGui::End(); }
 
 }; // namespace imgui_adaptors

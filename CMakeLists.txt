@@ -33,7 +33,10 @@ set(
   SRC_VIEWER
     ${CMAKE_SOURCE_DIR}/src/main.cpp
     ${CMAKE_SOURCE_DIR}/src/sdl_adaptors.cpp
-    ${CMAKE_SOURCE_DIR}/src/imgui_adaptors.cpp)
+    ${CMAKE_SOURCE_DIR}/src/imgui_adaptors.cpp
+    ${CMAKE_SOURCE_DIR}/src/quaternion.cpp
+    ${CMAKE_SOURCE_DIR}/src/camera.cpp)
+  
 
 set(APP_NAME GUIApplication)
 add_executable(
