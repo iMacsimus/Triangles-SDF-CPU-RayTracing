@@ -51,4 +51,11 @@ RendererHandler createRenderer(WindowHandler pWindow, int index,
           SDL_DestroyRenderer};
 }
 
+TextureHandler createTexture(RendererHandler pRenderer, uint32_t format,
+                             int access, int w, int h) {
+  return {
+      callAndCheck(SDL_CreateTexture, pRenderer.get(), format, access, w, h),
+      SDL_DestroyTexture};
+}
+
 } // namespace sdl_adapters

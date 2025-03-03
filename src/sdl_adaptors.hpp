@@ -32,11 +32,15 @@ public:
 
 using WindowHandler = std::shared_ptr<SDL_Window>;
 using RendererHandler = std::shared_ptr<SDL_Renderer>;
+using TextureHandler = std::shared_ptr<SDL_Texture>;
 
 WindowHandler createWindow(std::string_view title, int x, int y, int w, int h,
                            uint32_t flags);
 
 RendererHandler createRenderer(WindowHandler pWindow, int index,
                                uint32_t flags);
+
+TextureHandler createTexture(RendererHandler pRenderer, uint32_t format,
+                             int access, int w, int h);
 
 } // namespace sdl_adapters

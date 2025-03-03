@@ -32,6 +32,9 @@ public:
     return {x / n, y / n, z / n, w / n};
   }
   LiteMath::float4x4 rotationMatrix() const noexcept;
+
+public:
+  ~Quaternion() = default;
 };
 
 inline Quaternion operator*(const Quaternion &q1, const Quaternion &q2) {
