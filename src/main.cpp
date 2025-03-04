@@ -103,6 +103,8 @@ int main(int, char **) {
 
   int frames_count = 0;
   float average = 0.0f;
+  float time_min = std::numeric_limits<float>::infinity();
+  float time_max = 0.0f;
   while (!state.shouldBeClosed) {
     // Poll and handle events (inputs, window resize, etc.)
     pollEvents(state);
@@ -133,6 +135,8 @@ int main(int, char **) {
     average = (average * static_cast<float>(frames_count) + time) /
               (static_cast<float>(frames_count) + 1.0f);
     ++frames_count;
+    time_min = std::min(time, time_min);
+    time_max = std::max(time, time_max);
 
     // Window "Properties"
     {
@@ -150,6 +154,8 @@ int main(int, char **) {
       ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
       ImGui::Text("Render Time: %.03fms", time);
       ImGui::Text("Average Time: %.03fms", average);
+      ImGui::Text("Min Time: %.03fms", time_min);
+      ImGui::Text("Max Time: %.03fms", time_max);
     }
 
     // Rendering
