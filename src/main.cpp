@@ -14,10 +14,11 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <SDL.h>
 #include <SDL_keycode.h>
 
+#include <camera.hpp>
 #include <imgui_adaptors.hpp>
 #include <mesh.h>
-#include <quaternion.hpp>
 #include <sdl_adaptors.hpp>
+#include <triangles_raytracing.hpp>
 
 using namespace cmesh4;
 using namespace LiteMath;
@@ -34,7 +35,25 @@ struct ApplicationState {
 void pollEvents(ApplicationState &state);
 
 int main(int, char **) {
+  std::filesystem::path exec_path;
+  {
+    char path_cstr[PATH_MAX + 1] = {};
+    std::ignore = readlink("/proc/self/exe", path_cstr, PATH_MAX);
+    exec_path = path_cstr;
+  }
+  auto project_path = exec_path.parent_path().parent_path();
+  auto resources = project_path / "resources";
+
+  auto mesh_path = resources / "cube.obj";
+  auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
+
   ApplicationState state;
+  Camera camera({0.0, 5.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+
+  auto projMatrix = perspectiveMatrix(
+      45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
+      100.0f);
+  auto projInv = inverse4x4(projMatrix);
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -76,13 +95,8 @@ int main(int, char **) {
     ImGui::NewFrame();
 
     auto b = std::chrono::high_resolution_clock::now();
-    for (int indx = 0; indx < state.W * state.H; ++indx) {
-      uchar4 color = {static_cast<uint8_t>(rand() % 255),
-                      static_cast<uint8_t>(rand() % 255),
-                      static_cast<uint8_t>(rand() % 255), 255};
-      int2 xy = {indx % state.W, indx / state.W};
-      state.image[xy] = color.u32;
-    }
+    state.image.clear(0);
+    trace_triangles(state.image, mesh, camera, projInv);
     auto e = std::chrono::high_resolution_clock::now();
     float time =
         static_cast<float>(
@@ -93,6 +107,10 @@ int main(int, char **) {
     {
       // starts the window, ends when out of the scope
       imgui_adaptors::WindowGuard wg("Properties");
+      float3 cameraNewPos = camera.position();
+      if (ImGui::InputFloat3("Camera position", cameraNewPos.M)) {
+        camera.resetPosition(cameraNewPos);
+      }
       ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
       ImGui::Text("Render Time: %.03fms", time);
     }
@@ -131,6 +149,7 @@ void pollEvents(ApplicationState &state) {
       state.pSDLTexture = sdl_adapters::createTexture(
           state.pRenderer, SDL_PIXELFORMAT_ABGR8888,
           SDL_TEXTUREACCESS_STREAMING, state.W, state.H);
+      state.image.resize(state.W, state.H);
     }
   }
 }

@@ -3,6 +3,7 @@ set(CMAKE_CXX_STANDARD 20)
 project(SdfTask CXX)
 
 find_package(SDL2 REQUIRED)
+find_package(OpenMP REQUIRED)
 
 add_library(
   LiteMath
@@ -35,7 +36,8 @@ set(
     ${CMAKE_SOURCE_DIR}/src/sdl_adaptors.cpp
     ${CMAKE_SOURCE_DIR}/src/imgui_adaptors.cpp
     ${CMAKE_SOURCE_DIR}/src/quaternion.cpp
-    ${CMAKE_SOURCE_DIR}/src/camera.cpp)
+    ${CMAKE_SOURCE_DIR}/src/camera.cpp
+    ${CMAKE_SOURCE_DIR}/src/triangles_raytracing.cpp)
   
 
 set(APP_NAME GUIApplication)
@@ -47,7 +49,8 @@ target_link_libraries(
   ${APP_NAME} 
     ${SDL2_LIBRARIES} 
     LiteMath
-    ImGui_SDL)
+    ImGui_SDL
+    OpenMP::OpenMP_CXX)
 target_include_directories(
     ${APP_NAME} PUBLIC 
       ${SDL2_INCLUDE_DIRS} 

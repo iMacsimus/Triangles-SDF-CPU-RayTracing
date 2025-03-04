@@ -8,7 +8,8 @@ class Camera {
 public:
   Camera() noexcept = default;
   Camera(const LiteMath::float3 &position, const LiteMath::float3 &target,
-         const LiteMath::float3 &up) noexcept;
+         const LiteMath::float3 &up = LiteMath::float3{0.0f, 1.0f,
+                                                       0.0f}) noexcept;
   Camera(const Camera &) noexcept = default;
   Camera(Camera &&) noexcept = default;
 
@@ -27,6 +28,9 @@ public:
   LiteMath::float3 target() const noexcept { return m_target; }
   LiteMath::float3 up() const noexcept { return m_up; }
   LiteMath::float3 right() const noexcept;
+  LiteMath::float3 forward() const noexcept {
+    return LiteMath::normalize(target() - position());
+  }
 
 private:
   void updateVectors() noexcept;
