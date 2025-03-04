@@ -35,6 +35,16 @@ struct ApplicationState {
 };
 void pollEvents(ApplicationState &state);
 
+BBox3f calc_bbox(const cmesh4::SimpleMesh &mesh) {
+  BBox3f bbox;
+  for (auto &v : mesh.vPos4f) {
+    auto pos = to_float3(v / v.w);
+    bbox.boxMin = min(bbox.boxMin, pos);
+    bbox.boxMax = max(bbox.boxMax, pos);
+  }
+  return bbox;
+}
+
 int main(int, char **) {
   std::filesystem::path exec_path;
   {
@@ -47,6 +57,20 @@ int main(int, char **) {
 
   auto mesh_path = resources / "cube.obj";
   auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
+
+  auto bbox = calc_bbox(mesh);
+  auto center = (bbox.boxMin + bbox.boxMax) / 2.0f;
+  auto scale = length(bbox.boxMax - center);
+  for (auto &v : mesh.vPos4f) {
+    auto w = v.w;
+    v /= w;
+    float3 scaled = to_float3(v);
+    scaled -= center;
+    scaled /= scale;
+    v = to_float4(scaled, 1.0f);
+    v *= w;
+  }
+  bbox = calc_bbox(mesh);
 
   ApplicationState state;
   state.camera =
@@ -77,6 +101,8 @@ int main(int, char **) {
   auto &imguiBackend = imgui_adaptors::BackendManager::getInstance();
   imguiBackend.tryToInitialize(pImGuiContext, state.pWindow, state.pRenderer);
 
+  int frames_count = 0;
+  float average = 0.0f;
   while (!state.shouldBeClosed) {
     // Poll and handle events (inputs, window resize, etc.)
     pollEvents(state);
@@ -97,13 +123,17 @@ int main(int, char **) {
     auto projInv = inverse4x4(projMatrix);
     auto b = std::chrono::high_resolution_clock::now();
     state.image.clear(0);
-    trace_triangles(state.image, mesh, state.camera, projInv);
+    trace_triangles(state.image, mesh, bbox, state.camera, projInv);
     auto e = std::chrono::high_resolution_clock::now();
     float time =
         static_cast<float>(
             std::chrono::duration_cast<std::chrono::microseconds>(e - b)
                 .count()) /
         1e3f;
+    average = (average * static_cast<float>(frames_count) + time) /
+              (static_cast<float>(frames_count) + 1.0f);
+    ++frames_count;
+
     // Window "Properties"
     {
       // starts the window, ends when out of the scope
@@ -115,9 +145,11 @@ int main(int, char **) {
       float3 up = state.camera.up();
       float3 right = state.camera.right();
       ImGui::Text("Camera Up (%0.3f, %0.3f, %0.3f)", up.x, up.y, up.z);
-      ImGui::Text("Camera Right (%0.3f, %0.3f, %0.3f)", right.x, right.y, right.z);
+      ImGui::Text("Camera Right (%0.3f, %0.3f, %0.3f)", right.x, right.y,
+                  right.z);
       ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
       ImGui::Text("Render Time: %.03fms", time);
+      ImGui::Text("Average Time: %.03fms", average);
     }
 
     // Rendering

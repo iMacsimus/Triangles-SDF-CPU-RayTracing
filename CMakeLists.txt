@@ -38,7 +38,10 @@ set(
     ${CMAKE_SOURCE_DIR}/src/quaternion.cpp
     ${CMAKE_SOURCE_DIR}/src/camera.cpp
     ${CMAKE_SOURCE_DIR}/src/triangles_raytracing.cpp)
-  
+
+enable_language(ISPC)
+set(CMAKE_ISPC_FLAGS "${CMAKE_ISPC_FLAGS} --pic --werror")
+add_library(ispc_ray_pack src/ray_pack.ispc)   
 
 set(APP_NAME GUIApplication)
 add_executable(
@@ -48,6 +51,7 @@ add_executable(
 target_link_libraries(
   ${APP_NAME} 
     ${SDL2_LIBRARIES} 
+    ispc_ray_pack
     LiteMath
     ImGui_SDL
     OpenMP::OpenMP_CXX)
