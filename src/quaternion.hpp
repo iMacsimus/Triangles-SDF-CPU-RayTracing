@@ -50,3 +50,21 @@ inline LiteMath::float3 rotateVector(const LiteMath::float3 &v,
   Quaternion rotated = q * p * q.conjugate(); // Rotate the vector
   return {rotated.x, rotated.y, rotated.z};
 }
+
+inline
+Quaternion angleAxis(float angle, const LiteMath::float3& axis) {
+  // Normalize the axis to ensure it's a unit vector
+  LiteMath::float3 normalizedAxis = LiteMath::normalize(axis);
+
+  // Calculate the half-angle
+  float halfAngle = angle * 0.5f;
+
+  // Compute the quaternion components
+  Quaternion q;
+  q.w = std::cos(halfAngle);
+  q.x = normalizedAxis.x * std::sin(halfAngle);
+  q.y = normalizedAxis.y * std::sin(halfAngle);
+  q.z = normalizedAxis.z * std::sin(halfAngle);
+
+  return q;
+}

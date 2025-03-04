@@ -22,24 +22,27 @@ public:
   void resetTarget(const LiteMath::float3 &newTarget) noexcept;
   void rotate(float dx, float dy) noexcept;
   LiteMath::float4x4 lookAtMatrix() const noexcept {
-    return LiteMath::lookAt(m_position, m_target, m_up);
+    return LiteMath::lookAt(m_position, m_target, up());
   }
   LiteMath::float3 position() const noexcept { return m_position; }
   LiteMath::float3 target() const noexcept { return m_target; }
-  LiteMath::float3 up() const noexcept { return m_up; }
-  LiteMath::float3 right() const noexcept;
+  LiteMath::float3 up() const noexcept {
+    return LiteMath::normalize(rotateVector({0.0f, 1.0f, 0.0f}, m_orientation));
+  }
+  LiteMath::float3 right() const noexcept { 
+    return LiteMath::normalize(rotateVector({1.0f, 0.0f, 0.0f}, m_orientation));
+  }
   LiteMath::float3 forward() const noexcept {
     return LiteMath::normalize(target() - position());
   }
 
 private:
   void updateVectors() noexcept;
-  void updateOrientation() noexcept;
+  void updateOrientation(LiteMath::float3 up) noexcept;
 
 private:
   LiteMath::float3 m_position;
   LiteMath::float3 m_target;
-  LiteMath::float3 m_up = {0.0f, 1.0f, 0.0f};
   Quaternion m_orientation;
   float m_sensetivity = 0.01f;
 

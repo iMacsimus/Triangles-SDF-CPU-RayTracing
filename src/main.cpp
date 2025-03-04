@@ -31,6 +31,7 @@ struct ApplicationState {
   sdl_adapters::TextureHandler pSDLTexture;
   Image2D<uint32_t> image;
   int W = 1280, H = 720;
+  Camera camera;
 };
 void pollEvents(ApplicationState &state);
 
@@ -48,12 +49,8 @@ int main(int, char **) {
   auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
 
   ApplicationState state;
-  Camera camera({0.0, 5.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-
-  auto projMatrix = perspectiveMatrix(
-      45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
-      100.0f);
-  auto projInv = inverse4x4(projMatrix);
+  state.camera =
+      Camera({0.0, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -94,9 +91,13 @@ int main(int, char **) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
+    auto projMatrix = perspectiveMatrix(
+        45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
+        100.0f);
+    auto projInv = inverse4x4(projMatrix);
     auto b = std::chrono::high_resolution_clock::now();
     state.image.clear(0);
-    trace_triangles(state.image, mesh, camera, projInv);
+    trace_triangles(state.image, mesh, state.camera, projInv);
     auto e = std::chrono::high_resolution_clock::now();
     float time =
         static_cast<float>(
@@ -107,10 +108,14 @@ int main(int, char **) {
     {
       // starts the window, ends when out of the scope
       imgui_adaptors::WindowGuard wg("Properties");
-      float3 cameraNewPos = camera.position();
-      if (ImGui::InputFloat3("Camera position", cameraNewPos.M)) {
-        camera.resetPosition(cameraNewPos);
+      float3 cameraNewPos = state.camera.position();
+      if (ImGui::InputFloat3("Camera Position", cameraNewPos.M)) {
+        state.camera.resetPosition(cameraNewPos);
       }
+      float3 up = state.camera.up();
+      float3 right = state.camera.right();
+      ImGui::Text("Camera Up (%0.3f, %0.3f, %0.3f)", up.x, up.y, up.z);
+      ImGui::Text("Camera Right (%0.3f, %0.3f, %0.3f)", right.x, right.y, right.z);
       ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
       ImGui::Text("Render Time: %.03fms", time);
     }
@@ -133,6 +138,7 @@ int main(int, char **) {
 }
 
 void pollEvents(ApplicationState &state) {
+  auto &io = ImGui::GetIO();
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
     ImGui_ImplSDL2_ProcessEvent(&event);
@@ -150,6 +156,10 @@ void pollEvents(ApplicationState &state) {
           state.pRenderer, SDL_PIXELFORMAT_ABGR8888,
           SDL_TEXTUREACCESS_STREAMING, state.W, state.H);
       state.image.resize(state.W, state.H);
+    }
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !io.WantCaptureMouse) {
+      auto [dx, dy] = io.MouseDelta;
+      state.camera.rotate(-dx, -dy);
     }
   }
 }

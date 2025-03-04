@@ -6,8 +6,8 @@ void Camera::rotate(float dx, float dy) noexcept {
   float pitch = dy * m_sensetivity; // Rotation around the X-axis
   float yaw = dx * m_sensetivity;   // Rotation around the Y-axis
 
-  Quaternion qPitch(std::sin(pitch / 2.0f), 0.0f, 0.0f, std::cos(pitch / 2.0f));
-  Quaternion qYaw(0.0f, std::sin(yaw / 2.0f), 0.0f, std::cos(yaw / 2.0f));
+  Quaternion qYaw = angleAxis(yaw, up());
+  Quaternion qPitch = angleAxis(pitch, right());
 
   // Combine the rotations (yaw first, then pitch)
   m_orientation =
@@ -22,19 +22,16 @@ void Camera::updateVectors() noexcept {
 
   float distance = length(m_target - m_position);
   m_position = m_target - rotatedForward * distance;
-  m_up = normalize(rotateVector({0.0f, 1.0f, 0.0f}, m_orientation));
 }
 
 Camera::Camera(const float3 &position, const float3 &target,
                const float3 &up) noexcept
-    : m_position(position), m_target(target), m_up(up) {
-  auto mat = lookAtMatrix();
-  m_up = to_float3(mat.col(1));
-  updateOrientation();
+    : m_position(position), m_target(target) {
+  updateOrientation(up);
 }
 
-void Camera::updateOrientation() noexcept {
-  auto m = lookAtMatrix();
+void Camera::updateOrientation(float3 up) noexcept {
+  auto m = LiteMath::lookAt(position(), target(), up);
   float t = 0.0f; // trace
 
   if (m(2, 2) < 0) {
@@ -58,21 +55,15 @@ void Camera::updateOrientation() noexcept {
                                  m(0, 1) - m(1, 0), t);
     }
   }
-  m_orientation.asFloat4() *= 0.5f / std::sqrt(t);
-}
-
-LiteMath::float3 Camera::right() const noexcept {
-  return to_float3(lookAtMatrix().col(0));
+  normalize(m_orientation);
 }
 
 void Camera::resetPosition(const LiteMath::float3 &newPosition) noexcept {
   m_position = newPosition;
-  updateOrientation();
-  m_up = rotateVector({0.0f, 1.0f, 0.0f}, m_orientation);
+  updateOrientation(up());
 }
 
 void Camera::resetTarget(const LiteMath::float3 &newTarget) noexcept {
   m_target = newTarget;
-  updateOrientation();
-  m_up = rotateVector({0.0f, 1.0f, 0.0f}, m_orientation);
+  updateOrientation(up());
 }
