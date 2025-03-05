@@ -6,8 +6,22 @@
 #include "camera.hpp"
 #include "mesh.h"
 
-void trace_triangles(LiteImage::Image2D<uint32_t> &buffer,
-                     const cmesh4::SimpleMesh &mesh, 
-                     LiteMath::BBox3f bbox,
-                     const Camera &camera,
-                     LiteMath::float4x4 projInv);
+struct TrivialMeshRenderer {
+public:
+  cmesh4::SimpleMesh mesh;
+  Camera camera;
+  LiteMath::float4x4 projInv;
+
+public:
+  float draw(LiteImage::Image2D<uint32_t> &buffer) const;
+};
+
+inline LiteMath::BBox3f calc_bbox(const cmesh4::SimpleMesh &mesh) {
+  LiteMath::BBox3f bbox;
+  for (auto &v : mesh.vPos4f) {
+    auto pos = to_float3(v / v.w);
+    bbox.boxMin = min(bbox.boxMin, pos);
+    bbox.boxMax = max(bbox.boxMax, pos);
+  }
+  return bbox;
+}

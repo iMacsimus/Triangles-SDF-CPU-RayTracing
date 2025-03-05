@@ -1,6 +1,8 @@
-#include "triangles_raytracing.hpp"
+#include <chrono>
 #include <omp.h>
 #include <random>
+
+#include "triangles_raytracing.hpp"
 #include <ray_pack_ispc.h>
 
 using namespace LiteMath;
@@ -12,16 +14,14 @@ struct HitInfo {
   float3 normal;
 };
 
-void trace_triangles(LiteImage::Image2D<uint32_t> &buffer,
-                     const cmesh4::SimpleMesh &mesh, LiteMath::BBox3f bbox,
-                     const Camera &camera, LiteMath::float4x4 projInv) {
+float TrivialMeshRenderer::draw(LiteImage::Image2D<uint32_t> &buffer) const {
   int width = buffer.width();
   int height = buffer.height();
-
+  BBox3f bbox = calc_bbox(mesh);
   float3 rayPos = camera.position();
   auto viewMatrix = camera.lookAtMatrix();
   auto viewInv = inverse4x4(viewMatrix);
-
+  auto b = std::chrono::high_resolution_clock::now();
 #ifdef NDEBUG
 #pragma omp parallel for schedule(dynamic)
 #endif
@@ -70,4 +70,9 @@ void trace_triangles(LiteImage::Image2D<uint32_t> &buffer,
       }
     }
   }
+  auto e = std::chrono::high_resolution_clock::now();
+  return static_cast<float>(
+             std::chrono::duration_cast<std::chrono::microseconds>(e - b)
+                 .count()) /
+         1e3f;
 }

@@ -35,17 +35,8 @@ struct ApplicationState {
 };
 void pollEvents(ApplicationState &state);
 
-BBox3f calc_bbox(const cmesh4::SimpleMesh &mesh) {
-  BBox3f bbox;
-  for (auto &v : mesh.vPos4f) {
-    auto pos = to_float3(v / v.w);
-    bbox.boxMin = min(bbox.boxMin, pos);
-    bbox.boxMax = max(bbox.boxMax, pos);
-  }
-  return bbox;
-}
-
 int main(int, char **) {
+  ApplicationState state;
   std::filesystem::path exec_path;
   {
     char path_cstr[PATH_MAX + 1] = {};
@@ -70,11 +61,6 @@ int main(int, char **) {
     v = to_float4(scaled, 1.0f);
     v *= w;
   }
-  bbox = calc_bbox(mesh);
-
-  ApplicationState state;
-  state.camera =
-      Camera({0.0, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -89,6 +75,11 @@ int main(int, char **) {
       state.pRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
       state.W, state.H);
   state.image.resize(state.W, state.H);
+  state.camera =
+      Camera({0.0, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+
+  TrivialMeshRenderer renderer;
+  renderer.mesh = std::move(mesh);
 
   // Setup Dear ImGui context
   auto pImGuiContext = imgui_adaptors::createContext();
@@ -123,15 +114,10 @@ int main(int, char **) {
         45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
         100.0f);
     auto projInv = inverse4x4(projMatrix);
-    auto b = std::chrono::high_resolution_clock::now();
+    renderer.camera = state.camera;
+    renderer.projInv = projInv;
     state.image.clear(0);
-    trace_triangles(state.image, mesh, bbox, state.camera, projInv);
-    auto e = std::chrono::high_resolution_clock::now();
-    float time =
-        static_cast<float>(
-            std::chrono::duration_cast<std::chrono::microseconds>(e - b)
-                .count()) /
-        1e3f;
+    float time = renderer.draw(state.image);
     average = (average * static_cast<float>(frames_count) + time) /
               (static_cast<float>(frames_count) + 1.0f);
     ++frames_count;
