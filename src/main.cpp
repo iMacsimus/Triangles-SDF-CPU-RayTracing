@@ -46,7 +46,7 @@ int main(int, char **) {
   auto project_path = exec_path.parent_path().parent_path();
   auto resources = project_path / "resources";
 
-  auto mesh_path = resources / "cube.obj";
+  auto mesh_path = resources / "spot.obj";
   auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
 
   auto bbox = calc_bbox(mesh);
@@ -184,6 +184,13 @@ void pollEvents(ApplicationState &state) {
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !io.WantCaptureMouse) {
       auto [dx, dy] = io.MouseDelta;
       state.camera.rotate(-dx, -dy);
+    }
+    if (event.type == SDL_EventType::SDL_MOUSEWHEEL &&
+        event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
+        !io.WantCaptureMouse) {
+      float r = static_cast<float>(event.wheel.y);
+      state.camera.resetPosition(state.camera.position() +
+                                 state.camera.forward() * r / 5.0f);
     }
   }
 }

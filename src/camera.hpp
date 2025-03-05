@@ -35,6 +35,9 @@ public:
   LiteMath::float3 forward() const noexcept {
     return LiteMath::normalize(target() - position());
   }
+  float sensetivity() const noexcept {
+    return m_sensetivity;
+  }
 
 private:
   void updateVectors() noexcept;
