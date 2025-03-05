@@ -164,6 +164,7 @@ int main(int, char **) {
 void pollEvents(ApplicationState &state) {
   auto &io = ImGui::GetIO();
   SDL_Event event;
+  static float shift = 1.0f;
   while (SDL_PollEvent(&event)) {
     ImGui_ImplSDL2_ProcessEvent(&event);
     if (event.type == SDL_QUIT)
@@ -191,6 +192,37 @@ void pollEvents(ApplicationState &state) {
       float r = static_cast<float>(event.wheel.y);
       state.camera.resetPosition(state.camera.position() +
                                  state.camera.forward() * r / 5.0f);
+    }
+    if (event.type == SDL_EventType::SDL_KEYDOWN &&
+        event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
+        !io.WantCaptureMouse) {
+      float distance = length(state.camera.target() - state.camera.position());
+      switch (event.key.keysym.sym) {
+      case SDLK_KP_1:
+        state.camera =
+            Camera({0, 0, state.camera.target().z + distance * shift},
+                   state.camera.target());
+        break;
+      case SDLK_KP_3:
+        state.camera =
+            Camera({state.camera.target().x + distance * shift, 0, 0},
+                   state.camera.target());
+        break;
+      case SDLK_KP_7:
+        state.camera =
+            Camera({0, state.camera.target().y + distance * shift, 0},
+                   state.camera.target(), {0, 0, -1 * shift});
+        break;
+      case SDLK_LSHIFT:
+        shift = -1.0f;
+        break;
+      }
+    }
+    if (event.type == SDL_EventType::SDL_KEYUP &&
+        event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
+        !io.WantCaptureMouse) {
+      if (event.key.keysym.sym == SDLK_LSHIFT)
+        shift = 1.0f;
     }
   }
 }
