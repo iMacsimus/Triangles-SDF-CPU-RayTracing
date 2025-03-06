@@ -62,6 +62,9 @@ int main(int, char **) {
     v *= w;
   }
 
+  BVHBuilder bvhBuilder;
+  bvhBuilder.perform(std::move(mesh));
+
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
 
