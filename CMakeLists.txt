@@ -5,6 +5,8 @@ project(SdfTask CXX)
 find_package(SDL2 REQUIRED)
 find_package(OpenMP REQUIRED)
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+
 add_library(
   LiteMath
     ${CMAKE_SOURCE_DIR}/external/LiteMath/Image2d.cpp)
@@ -61,4 +63,4 @@ target_include_directories(
       ${CMAKE_SOURCE_DIR}/src/core
       ${CMAKE_SOURCE_DIR}/src/
       ${CMAKE_SOURCE_DIR}/external/stb/)
-target_compile_options(${APP_NAME} PRIVATE -Wall -Wextra -Wshadow -Wconversion -Werror)
+target_compile_options(${APP_NAME} PUBLIC -Wall -Wextra -Wshadow -Wconversion -Werror)

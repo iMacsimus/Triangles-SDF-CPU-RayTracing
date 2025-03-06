@@ -151,7 +151,7 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
   DivisionResult result;
   result.sah = static_cast<float>(end - start) / 3.0f;
   float parentSurfaceArea = surfaceArea(m_leftBoxes[end / 3 - 1]);
-  for (size_t divider = start + 3; divider < end; divider += 3) {
+  for (size_t divider = start+3; divider < end; divider += 3) {
     auto leftBox = m_leftBoxes[divider / 3 - 1];
     auto rightBox = m_rightBoxes[divider / 3];
     float leftCount = static_cast<float>(divider - start) / 3.0f;
@@ -163,6 +163,22 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
       result.sah = curSAH;
       result.dividerId = divider;
       result.isDivided = true;
+    }
+  }
+
+  // align to 8
+  if (result.isDivided && (result.dividerId - start) % 24 != 0) {
+    size_t divider1 = (result.dividerId - 1) / 24 * 24;
+    size_t divider2 = ((result.dividerId - 1) / 24 + 1) * 24;
+    size_t nearest =
+        (result.dividerId - divider1 <= divider2 - result.dividerId) ? divider1
+                                                                     : divider2;
+    size_t other = divider1+divider2-nearest;
+
+    if (start < nearest && nearest < end) {
+      result.dividerId = nearest;
+    } else if (start < other && other < end) {
+      result.dividerId = other;
     }
   }
 
@@ -206,7 +222,6 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(size_t start, size_t end) {
 }
 
 void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
-  auto &node = m_nodes[offset];
   size_t dividors[7] = {};
   size_t dividorsCount = 0;
   ChipQueue<std::pair<size_t, size_t>, 40> candidates;
@@ -227,33 +242,33 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
   dividorsCount = std::min(dividorsCount, 7ul);
 
   if (dividorsCount == 0) {
-    node.isLeaf = true;
-    node.leafInfo.startIndex = static_cast<uint32_t>(start);
-    node.leafInfo.count = static_cast<uint32_t>(end - start);
+    m_nodes[offset].isLeaf = true;
+    m_nodes[offset].leafInfo.startIndex = static_cast<uint32_t>(start);
+    m_nodes[offset].leafInfo.count = static_cast<uint32_t>(end - start);
     return;
   }
 
-  node.isLeaf = false;
-  node.children.offset = static_cast<uint32_t>(m_nodes.size());
-  node.children.realCount = static_cast<uint32_t>(dividorsCount + 1);
+  m_nodes[offset].isLeaf = false;
+  m_nodes[offset].children.offset = static_cast<uint32_t>(m_nodes.size());
+  m_nodes[offset].children.realCount = static_cast<uint32_t>(dividorsCount + 1);
   std::sort(dividors, dividors + dividorsCount);
   for (size_t child = 0; child < dividorsCount + 1; ++child) {
     m_nodes.push_back({});
     size_t leftBound = (child == 0) ? start : dividors[child - 1];
     size_t rightBound = (child == dividorsCount) ? end : dividors[child];
     BBox3f childBox = calc_bbox(m_mesh, leftBound, rightBound);
-    node.children.boxes.xMin[child] = childBox.boxMin.x;
-    node.children.boxes.yMin[child] = childBox.boxMin.y;
-    node.children.boxes.zMin[child] = childBox.boxMin.z;
-    node.children.boxes.xMax[child] = childBox.boxMax.x;
-    node.children.boxes.yMax[child] = childBox.boxMax.y;
-    node.children.boxes.zMax[child] = childBox.boxMax.z;
+    m_nodes[offset].children.boxes.xMin[child] = childBox.boxMin.x;
+    m_nodes[offset].children.boxes.yMin[child] = childBox.boxMin.y;
+    m_nodes[offset].children.boxes.zMin[child] = childBox.boxMin.z;
+    m_nodes[offset].children.boxes.xMax[child] = childBox.boxMax.x;
+    m_nodes[offset].children.boxes.yMax[child] = childBox.boxMax.y;
+    m_nodes[offset].children.boxes.zMax[child] = childBox.boxMax.z;
   }
 
   for (size_t child = 0; child < dividorsCount + 1; ++child) {
     size_t leftBound = (child == 0) ? start : dividors[child - 1];
     size_t rightBound = (child == dividorsCount) ? end : dividors[child];
-    createNode(node.children.offset + child, leftBound, rightBound);
+    createNode(m_nodes[offset].children.offset + child, leftBound, rightBound);
   }
 }
 
