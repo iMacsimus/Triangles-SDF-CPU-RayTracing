@@ -101,7 +101,7 @@ static HitInfo triangle_intersection(const varying float3 &orig,
                               const uniform float3 &v2) {
   HitInfo res;
   res.hitten = false;
-  res.t = 0.0f;
+  res.t = -1.0f;
   float3 e1 = v1 - v0;
   float3 e2 = v2 - v0;
   res.norm = normalize(cross(e1, e2));
@@ -136,7 +136,7 @@ static HitInfo triangle_intersection(const uniform float3 &orig,
                               const varying float3 &v2) {
   HitInfo res;
   res.hitten = false;
-  res.t = 0.0f;
+  res.t = -1.0f;
   float3 e1 = v1 - v0;
   float3 e2 = v2 - v0;
   res.norm = normalize(cross(e1, e2));
@@ -232,7 +232,7 @@ void intersect_box_8(
     float3 tMax3 = { max(t1.x, t2.x), max(t1.y, t2.y), max(t1.z, t2.z) };
 
     float tMin = max(tMin3.x, max(tMin3.y, tMin3.z));
-    float tMax = min(tMax3.x, max(tMax3.y, tMax3.z));
+    float tMax = min(tMax3.x, min(tMax3.y, tMax3.z));
 
     tMin = max(tMin, tNear);
     tMax = min(tMax, tFar);

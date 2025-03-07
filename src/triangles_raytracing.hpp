@@ -101,6 +101,7 @@ public:
   HitInfo intersect(const LiteMath::float3 &rayPos,
                     const LiteMath::float3 &rayDir, float tNear,
                     float tFar) const;
+  cmesh4::SimpleMesh &&result() { return std::move(m_mesh); }
 
 private:
   struct DivisionResult {
@@ -153,3 +154,7 @@ public:
   int size() const { return count; }
   bool isEmpty() const { return count == 0; }
 };
+
+float drawBVHTriangles(LiteImage::Image2D<uint32_t> &buffer,
+                      const Camera &camera, const LiteMath::float4x4 projInv,
+                      const BVHBuilder &builder);

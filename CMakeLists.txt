@@ -42,7 +42,7 @@ set(
     ${CMAKE_SOURCE_DIR}/src/triangles_raytracing.cpp)
 
 enable_language(ISPC)
-set(CMAKE_ISPC_FLAGS "${CMAKE_ISPC_FLAGS} --pic --werror")
+set(CMAKE_ISPC_FLAGS "${CMAKE_ISPC_FLAGS} --pic")
 add_library(ispc_ray_pack src/ray_pack.ispc)   
 
 set(APP_NAME GUIApplication)

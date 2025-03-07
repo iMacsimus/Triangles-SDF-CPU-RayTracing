@@ -243,7 +243,7 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
       return;
     }
   }
-  
+
   assert(dividorsCount <= 7);
   dividorsCount = std::min(dividorsCount, 7ul);
 
@@ -256,6 +256,7 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
     size_t leftBound = (child == 0) ? start : dividors[child - 1];
     size_t rightBound = (child == dividorsCount) ? end : dividors[child];
     BBox3f childBox = calc_bbox(m_mesh, leftBound, rightBound);
+    assert(all_of(childBox.boxMin < childBox.boxMax));
     m_nodes[offset].children.boxes.xMin[child] = childBox.boxMin.x;
     m_nodes[offset].children.boxes.yMin[child] = childBox.boxMin.y;
     m_nodes[offset].children.boxes.zMin[child] = childBox.boxMin.z;
@@ -342,11 +343,9 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
 
     for (size_t i = 0; i < 8; ++i) {
       size_t childID = children[i];
-      if (childID >= node.children.realCount)
+      if (childID >= node.children.realCount || (t[i] < 0) ||
+          (result.hitten && result.t < t[i]))
         continue;
-      if (result.hitten && result.t < t[i]) {
-        continue;
-      }
 
       HitInfo cur = traverseNode(node.children.offset + childID, rayPos, rayDir,
                                  tNear, tFar);
@@ -387,13 +386,50 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
     ispc::intersect_1_ray_8_triangles(&triagles, rayPos.M, rayDir.M, &hits);
 
     for (size_t trID = 0; trID < trianglesCount; ++trID) {
-      if (!result.hitten || result.t < hits.t[trID]) {
+      if (hits.hitten[trID] && (!result.hitten || result.t > hits.t[trID])) {
         result.hitten = true;
         result.normal = {hits.norm_x[trID], hits.norm_y[trID],
                          hits.norm_z[trID]};
+        result.t = hits.t[trID];
       }
     }
   }
 
   return result;
+}
+
+float drawBVHTriangles(LiteImage::Image2D<uint32_t> &buffer,
+                       const Camera &camera, const LiteMath::float4x4 projInv,
+                       const BVHBuilder &builder) {
+  int width = buffer.width();
+  int height = buffer.height();
+  float3 rayPos = camera.position();
+  auto viewMatrix = camera.lookAtMatrix();
+  auto viewInv = inverse4x4(viewMatrix);
+  auto b = std::chrono::high_resolution_clock::now();
+#ifdef NDEBUG
+#pragma omp parallel for schedule(dynamic)
+#endif
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      float4 rayDir4 = EyeRayDir4f(
+          static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f,
+          static_cast<float>(width), static_cast<float>(height), projInv);
+      rayDir4.w = 0.0f;
+      rayDir4 = viewInv * rayDir4;
+      float3 rayDir = to_float3(rayDir4);
+      auto hit = builder.intersect(rayPos, rayDir, 0.0f, 100.0f);
+      if (hit.hitten) {
+        float4 color = to_float4(hit.normal, 1.0f);
+        color += 1.0f;
+        color /= 2.0f;
+        buffer[int2{x, height - y - 1}] = color_pack_rgba(color);
+      }
+    }
+  }
+  auto e = std::chrono::high_resolution_clock::now();
+  return static_cast<float>(
+             std::chrono::duration_cast<std::chrono::microseconds>(e - b)
+                 .count()) /
+         1e3f;
 }

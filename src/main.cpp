@@ -46,7 +46,7 @@ int main(int, char **) {
   auto project_path = exec_path.parent_path().parent_path();
   auto resources = project_path / "resources";
 
-  auto mesh_path = resources / "stanford-bunny.obj";
+  auto mesh_path = resources / "MotorcycleCylinderHead.obj";
   auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
 
   auto bbox = calc_bbox(mesh);
@@ -65,6 +65,8 @@ int main(int, char **) {
   BVHBuilder bvhBuilder;
   auto b = std::chrono::high_resolution_clock::now();
   bvhBuilder.perform(std::move(mesh));
+  TrivialMeshRenderer renderer;
+  //renderer.mesh = std::move(bvhBuilder.result());
   auto e = std::chrono::high_resolution_clock::now();
   std::cout << static_cast<float>(
                    std::chrono::duration_cast<std::chrono::microseconds>(e - b)
@@ -87,9 +89,6 @@ int main(int, char **) {
   state.image.resize(state.W, state.H);
   state.camera =
       Camera({0.0, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-
-  TrivialMeshRenderer renderer;
-  renderer.mesh = std::move(mesh);
 
   // Setup Dear ImGui context
   auto pImGuiContext = imgui_adaptors::createContext();
@@ -124,10 +123,10 @@ int main(int, char **) {
         45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
         100.0f);
     auto projInv = inverse4x4(projMatrix);
+    state.image.clear(0);
     renderer.camera = state.camera;
     renderer.projInv = projInv;
-    state.image.clear(0);
-    float time = renderer.draw(state.image);
+    float time = drawBVHTriangles(state.image, state.camera, projInv, bvhBuilder);
     average = (average * static_cast<float>(frames_count) + time) /
               (static_cast<float>(frames_count) + 1.0f);
     ++frames_count;
