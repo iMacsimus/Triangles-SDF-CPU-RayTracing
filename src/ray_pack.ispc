@@ -20,6 +20,14 @@ float3 cross(const float3 &a, const float3 &b)
 }
 
 inline
+float3 cross(const uniform float3 &a, const float3 &b)
+{
+  const float3 a_yzx = shuffle_yzx(a);
+  const float3 b_yzx = shuffle_yzx(b);
+  return shuffle_yzx(a*b_yzx - a_yzx*b);
+}
+
+inline
 float dot(const float4 &a, const float4 &b)
 {
   return a.x*b.x+a.y*b.y+a.z*b.z+a.w*b.w;
@@ -27,6 +35,12 @@ float dot(const float4 &a, const float4 &b)
 
 inline
 float dot(const float3 &a, const float3 &b)
+{
+  return a.x*b.x+a.y*b.y+a.z*b.z;
+}
+
+inline
+float dot(const uniform float3 &a, const float3 &b)
 {
   return a.x*b.x+a.y*b.y+a.z*b.z;
 }
@@ -115,6 +129,41 @@ static HitInfo triangle_intersection(const varying float3 &orig,
   return res;
 }
 
+static HitInfo triangle_intersection(const uniform float3 &orig, 
+                              const uniform float3 &dir,
+                              const varying float3 &v0, 
+                              const varying float3 &v1,
+                              const varying float3 &v2) {
+  HitInfo res;
+  res.hitten = false;
+  res.t = 0.0f;
+  float3 e1 = v1 - v0;
+  float3 e2 = v2 - v0;
+  res.norm = normalize(cross(e1, e2));
+  float3 pvec = cross(dir, e2);
+  float det = dot(e1, pvec);
+
+  if (det < 1e-8f && det > -1e-8f) {
+    return res;
+  }
+
+  float inv_det = 1 / det;
+  float3 tvec = orig - v0;
+  float u = dot(tvec, pvec) * inv_det;
+  if (u < 0.0f || u > 1.0f) {
+    return res;
+  }
+
+  float3 qvec = cross(tvec, e1);
+  float v = dot(dir, qvec) * inv_det;
+  if (v < 0.0f || u + v > 1.0f) {
+    return res;
+  }
+  res.t = dot(e2, qvec) * inv_det;
+  res.hitten = true;
+  return res;
+}
+
 export
 void intersect_triangles_8(
     const Ray8 * uniform pRays, 
@@ -149,5 +198,86 @@ void intersect_triangles_8(
     pHitInfo->norm_x[rayID] = res.norm.x;
     pHitInfo->norm_y[rayID] = res.norm.y;
     pHitInfo->norm_z[rayID] = res.norm.z;
+  }
+}
+
+struct Box8
+{
+  float xMin[8];
+  float yMin[8];
+  float zMin[8];
+  float xMax[8];
+  float yMax[8];
+  float zMax[8];
+};
+
+export
+void intersect_box_8(
+    const Box8 * uniform pBoxes,
+    const float uniform orig[3],
+    const float uniform dirInverted[3],
+    float uniform tNear, float uniform tFar,
+    float uniform pResults[8]) {
+  float3 rayPos = { orig[0], orig[1], orig[2] };
+  float3 invDir = { dirInverted[0], dirInverted[1], dirInverted[2] };
+
+  foreach(boxID = 0...8) {
+    float3 boxMin = { pBoxes->xMin[boxID], pBoxes->yMin[boxID], pBoxes->zMin[boxID] };
+    float3 boxMax = { pBoxes->xMax[boxID], pBoxes->yMax[boxID], pBoxes->zMax[boxID] };
+
+    float3 t1 = (boxMin-rayPos) * invDir; //TODO safe invDir
+    float3 t2 = (boxMax-rayPos) * invDir;
+
+    float3 tMin3 = { min(t1.x, t2.x), min(t1.y, t2.y), min(t1.z, t2.z) };
+    float3 tMax3 = { max(t1.x, t2.x), max(t1.y, t2.y), max(t1.z, t2.z) };
+
+    float tMin = max(tMin3.x, max(tMin3.y, tMin3.z));
+    float tMax = min(tMax3.x, max(tMax3.y, tMax3.z));
+
+    tMin = max(tMin, tNear);
+    tMax = min(tMax, tFar);
+
+    if (tMax < 0 || tMin > tMax) {
+      pResults[boxID] = -1.0f;
+    } else {
+      pResults[boxID] = tMin;
+    }
+  }
+}
+
+struct Point8
+{
+  float x[8];
+  float y[8];
+  float z[8];
+};
+
+struct Triangle8
+{
+  Point8 v0;
+  Point8 v1;
+  Point8 v2;
+};
+
+export
+void intersect_1_ray_8_triangles(
+    const Triangle8 * uniform pTriangles,
+    const float uniform orig[3],
+    const float uniform dir[3],
+    HitInfo8 * uniform pResults) {
+  uniform float3 rayPos = { orig[0], orig[1], orig[2] };
+  uniform float3 rayDir = { dir[0], dir[1], dir[2] };
+
+  foreach(trID = 0...8) {
+    float3 v0 = { pTriangles->v0.x[trID], pTriangles->v0.y[trID], pTriangles->v0.z[trID] };
+    float3 v1 = { pTriangles->v1.x[trID], pTriangles->v1.y[trID], pTriangles->v1.z[trID] };
+    float3 v2 = { pTriangles->v2.x[trID], pTriangles->v2.y[trID], pTriangles->v2.z[trID] };
+
+    HitInfo hit = triangle_intersection(rayPos, rayDir, v0, v1, v2);
+    pResults->hitten[trID] = hit.hitten;
+    pResults->t[trID] = hit.t;
+    pResults->norm_x[trID] = hit.norm.x;
+    pResults->norm_y[trID] = hit.norm.y;
+    pResults->norm_z[trID] = hit.norm.z;
   }
 }

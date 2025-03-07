@@ -10,12 +10,6 @@ using namespace LiteImage;
 
 constexpr float EMPTY_NODE_TRAVERSE_COST = 0.2f;
 
-struct HitInfo {
-  bool hitten = false;
-  float t;
-  float3 normal;
-};
-
 float TrivialMeshRenderer::draw(LiteImage::Image2D<uint32_t> &buffer) const {
   int width = buffer.width();
   int height = buffer.height();
@@ -151,7 +145,7 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
   DivisionResult result;
   result.sah = static_cast<float>(end - start) / 3.0f;
   float parentSurfaceArea = surfaceArea(m_leftBoxes[end / 3 - 1]);
-  for (size_t divider = start+3; divider < end; divider += 3) {
+  for (size_t divider = start + 3; divider < end; divider += 3) {
     auto leftBox = m_leftBoxes[divider / 3 - 1];
     auto rightBox = m_rightBoxes[divider / 3];
     float leftCount = static_cast<float>(divider - start) / 3.0f;
@@ -173,7 +167,7 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
     size_t nearest =
         (result.dividerId - divider1 <= divider2 - result.dividerId) ? divider1
                                                                      : divider2;
-    size_t other = divider1+divider2-nearest;
+    size_t other = divider1 + divider2 - nearest;
 
     if (start < nearest && nearest < end) {
       result.dividerId = nearest;
@@ -238,15 +232,20 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
       candidates.tryEnqueue({result.dividerId, curEnd});
     }
   }
-  assert(dividorsCount <= 7);
-  dividorsCount = std::min(dividorsCount, 7ul);
 
   if (dividorsCount == 0) {
-    m_nodes[offset].isLeaf = true;
-    m_nodes[offset].leafInfo.startIndex = static_cast<uint32_t>(start);
-    m_nodes[offset].leafInfo.count = static_cast<uint32_t>(end - start);
-    return;
+    if (end - start > 24) { // maximum 8 triangles per list
+      dividors[dividorsCount++] = ((start / 3 + end / 3) / 2) * 3;
+    } else {
+      m_nodes[offset].isLeaf = true;
+      m_nodes[offset].leafInfo.startIndex = static_cast<uint32_t>(start);
+      m_nodes[offset].leafInfo.count = static_cast<uint32_t>(end - start);
+      return;
+    }
   }
+  
+  assert(dividorsCount <= 7);
+  dividorsCount = std::min(dividorsCount, 7ul);
 
   m_nodes[offset].isLeaf = false;
   m_nodes[offset].children.offset = static_cast<uint32_t>(m_nodes.size());
@@ -292,4 +291,109 @@ void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
   m_rightBoxes.shrink_to_fit();
   m_indicesY.shrink_to_fit();
   m_indicesZ.shrink_to_fit();
+}
+
+HitInfo BVHBuilder::intersect(const LiteMath::float3 &rayPos,
+                              const LiteMath::float3 &rayDir, float tNear,
+                              float tFar) const {
+  return traverseNode(0, rayPos, rayDir, tNear, tFar);
+}
+
+#define SWAP(x, y)                                                             \
+  if (t[x] > t[y]) {                                                           \
+    std::swap(t[x], t[y]);                                                     \
+    std::swap(children[x], children[y]);                                       \
+  }
+void sort8(float t[8], size_t children[8]) {
+  SWAP(0, 1);
+  SWAP(2, 3);
+  SWAP(4, 5);
+  SWAP(6, 7);
+  SWAP(0, 2);
+  SWAP(1, 3);
+  SWAP(4, 6);
+  SWAP(5, 7);
+  SWAP(1, 2);
+  SWAP(5, 6);
+  SWAP(0, 4);
+  SWAP(3, 7);
+  SWAP(1, 5);
+  SWAP(2, 6);
+  SWAP(1, 4);
+  SWAP(3, 6);
+  SWAP(2, 4);
+  SWAP(3, 5);
+  SWAP(3, 4);
+}
+
+HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
+                                 LiteMath::float3 rayDir, float tNear,
+                                 float tFar) const {
+  auto &node = m_nodes[index];
+  HitInfo result;
+  if (!node.isLeaf) {
+    float t[8] = {};
+    float3 invDir = 1.0f / rayDir;
+    ispc::intersect_box_8(
+        reinterpret_cast<const ispc::Box8 *>(&node.children.boxes), rayPos.M,
+        invDir.M, tNear, tFar, t);
+    size_t children[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    sort8(t, children);
+
+    for (size_t i = 0; i < 8; ++i) {
+      size_t childID = children[i];
+      if (childID >= node.children.realCount)
+        continue;
+      if (result.hitten && result.t < t[i]) {
+        continue;
+      }
+
+      HitInfo cur = traverseNode(node.children.offset + childID, rayPos, rayDir,
+                                 tNear, tFar);
+      if (cur.hitten && (!result.hitten || result.t > cur.t)) {
+        result = cur;
+      }
+    }
+  } else {
+    uint32_t start = node.leafInfo.startIndex;
+    uint32_t end = start + node.leafInfo.count;
+    uint32_t trianglesCount = (end - start) / 3;
+    assert(trianglesCount <= 8);
+    trianglesCount = std::min(trianglesCount, 8u);
+
+    ispc::Triangle8 triagles = {};
+    for (uint32_t trID = 0; trID < trianglesCount; ++trID) {
+      uint32_t i0 = m_mesh.indices[start + trID * 3];
+      uint32_t i1 = m_mesh.indices[start + trID * 3 + 1];
+      uint32_t i2 = m_mesh.indices[start + trID * 3 + 2];
+      float4 v0 = m_mesh.vPos4f[i0];
+      float4 v1 = m_mesh.vPos4f[i1];
+      float4 v2 = m_mesh.vPos4f[i2];
+      v0 /= v0.w;
+      v1 /= v1.w;
+      v2 /= v2.w;
+
+      triagles.v0.x[trID] = v0.x;
+      triagles.v0.y[trID] = v0.y;
+      triagles.v0.z[trID] = v0.z;
+      triagles.v1.x[trID] = v1.x;
+      triagles.v1.y[trID] = v1.y;
+      triagles.v1.z[trID] = v1.z;
+      triagles.v2.x[trID] = v2.x;
+      triagles.v2.y[trID] = v2.y;
+      triagles.v2.z[trID] = v2.z;
+    }
+    ispc::HitInfo8 hits;
+    ispc::intersect_1_ray_8_triangles(&triagles, rayPos.M, rayDir.M, &hits);
+
+    for (size_t trID = 0; trID < trianglesCount; ++trID) {
+      if (!result.hitten || result.t < hits.t[trID]) {
+        result.hitten = true;
+        result.normal = {hits.norm_x[trID], hits.norm_y[trID],
+                         hits.norm_z[trID]};
+      }
+    }
+  }
+
+  return result;
 }

@@ -61,6 +61,12 @@ inline float surfaceArea(LiteMath::BBox3f box) {
   return 2 * (delta.x * delta.y + delta.x * delta.z + delta.y * delta.z);
 }
 
+struct HitInfo {
+  bool hitten = false;
+  float t = std::numeric_limits<float>::infinity();
+  LiteMath::float3 normal;
+};
+
 struct Box8 {
   float xMin[8];
   float yMin[8];
@@ -92,7 +98,9 @@ struct BVH8Node {
 class BVHBuilder {
 public:
   void perform(cmesh4::SimpleMesh mesh);
-  cmesh4::SimpleMesh &&result() { return std::move(m_mesh); }
+  HitInfo intersect(const LiteMath::float3 &rayPos,
+                    const LiteMath::float3 &rayDir, float tNear,
+                    float tFar) const;
 
 private:
   struct DivisionResult {
@@ -104,6 +112,8 @@ private:
   DivisionResult tryDivide(std::vector<uint32_t> &indices, size_t start,
                            size_t end, uint32_t axes);
   void createNode(size_t offset, size_t start, size_t end);
+  HitInfo traverseNode(size_t index, LiteMath::float3 rayPos,
+                       LiteMath::float3 rayDir, float tNear, float tFar) const;
 
 private:
   std::vector<BVH8Node> m_nodes;

@@ -46,7 +46,7 @@ int main(int, char **) {
   auto project_path = exec_path.parent_path().parent_path();
   auto resources = project_path / "resources";
 
-  auto mesh_path = resources / "spot.obj";
+  auto mesh_path = resources / "stanford-bunny.obj";
   auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
 
   auto bbox = calc_bbox(mesh);
@@ -63,7 +63,14 @@ int main(int, char **) {
   }
 
   BVHBuilder bvhBuilder;
+  auto b = std::chrono::high_resolution_clock::now();
   bvhBuilder.perform(std::move(mesh));
+  auto e = std::chrono::high_resolution_clock::now();
+  std::cout << static_cast<float>(
+                   std::chrono::duration_cast<std::chrono::microseconds>(e - b)
+                       .count()) /
+                   1e3f
+            << "ms" << std::endl;
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
