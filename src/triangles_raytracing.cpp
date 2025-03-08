@@ -216,7 +216,9 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(size_t start, size_t end) {
 }
 
 void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
-  size_t dividors[7] = {};
+  BVH8Node node;
+
+  size_t dividors[20] = {};
   size_t dividorsCount = 0;
   ChipQueue<std::pair<size_t, size_t>, 40> candidates;
   candidates.tryEnqueue({start, end});
@@ -237,9 +239,13 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
     if (end - start > 24) { // maximum 8 triangles per list
       dividors[dividorsCount++] = ((start / 3 + end / 3) / 2) * 3;
     } else {
-      m_nodes[offset].isLeaf = true;
-      m_nodes[offset].leafInfo.startIndex = static_cast<uint32_t>(start);
-      m_nodes[offset].leafInfo.count = static_cast<uint32_t>(end - start);
+      node.isLeaf = true;
+      node.leafInfo.startIndex = static_cast<uint32_t>(start);
+      node.leafInfo.count = static_cast<uint32_t>(end - start);
+#pragma omp critical
+      {
+        m_nodes[offset] = node;
+      }
       return;
     }
   }
@@ -247,28 +253,37 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
   assert(dividorsCount <= 7);
   dividorsCount = std::min(dividorsCount, 7ul);
 
-  m_nodes[offset].isLeaf = false;
-  m_nodes[offset].children.offset = static_cast<uint32_t>(m_nodes.size());
-  m_nodes[offset].children.realCount = static_cast<uint32_t>(dividorsCount + 1);
+  node.isLeaf = false;
+  node.children.realCount = static_cast<uint32_t>(dividorsCount + 1);
   std::sort(dividors, dividors + dividorsCount);
   for (size_t child = 0; child < dividorsCount + 1; ++child) {
-    m_nodes.push_back({});
     size_t leftBound = (child == 0) ? start : dividors[child - 1];
     size_t rightBound = (child == dividorsCount) ? end : dividors[child];
     BBox3f childBox = calc_bbox(m_mesh, leftBound, rightBound);
     assert(all_of(childBox.boxMin < childBox.boxMax));
-    m_nodes[offset].children.boxes.xMin[child] = childBox.boxMin.x;
-    m_nodes[offset].children.boxes.yMin[child] = childBox.boxMin.y;
-    m_nodes[offset].children.boxes.zMin[child] = childBox.boxMin.z;
-    m_nodes[offset].children.boxes.xMax[child] = childBox.boxMax.x;
-    m_nodes[offset].children.boxes.yMax[child] = childBox.boxMax.y;
-    m_nodes[offset].children.boxes.zMax[child] = childBox.boxMax.z;
+    node.children.boxes.xMin[child] = childBox.boxMin.x;
+    node.children.boxes.yMin[child] = childBox.boxMin.y;
+    node.children.boxes.zMin[child] = childBox.boxMin.z;
+    node.children.boxes.xMax[child] = childBox.boxMax.x;
+    node.children.boxes.yMax[child] = childBox.boxMax.y;
+    node.children.boxes.zMax[child] = childBox.boxMax.z;
+  }
+
+#pragma omp critical
+  {
+    node.children.offset = static_cast<uint32_t>(m_nodes.size());
+    for (size_t child = 0; child < dividorsCount + 1; ++child)
+      m_nodes.emplace_back();
+    m_nodes[offset] = node;
   }
 
   for (size_t child = 0; child < dividorsCount + 1; ++child) {
     size_t leftBound = (child == 0) ? start : dividors[child - 1];
     size_t rightBound = (child == dividorsCount) ? end : dividors[child];
-    createNode(m_nodes[offset].children.offset + child, leftBound, rightBound);
+#pragma omp task
+    {
+      createNode(node.children.offset + child, leftBound, rightBound);
+    }
   }
 }
 
@@ -280,8 +295,15 @@ void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
   m_indicesY.resize(m_mesh.IndicesNum());
   m_indicesZ.resize(m_mesh.IndicesNum());
 
+  m_nodes.reserve(m_mesh.TrianglesNum() * 2);
   m_nodes = {BVH8Node{}};
-  createNode(0, 0, m_mesh.indices.size());
+#pragma omp parallel num_threads(omp_get_max_threads())
+  {
+#pragma omp single
+    {
+      createNode(0, 0, m_mesh.indices.size());
+    }
+  }
 
   m_leftBoxes.clear();
   m_rightBoxes.clear();

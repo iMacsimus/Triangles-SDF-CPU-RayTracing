@@ -5,7 +5,7 @@ project(SdfTask CXX)
 find_package(SDL2 REQUIRED)
 find_package(OpenMP REQUIRED)
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -fsanitize=thread -fsanitize=undefined")
 
 add_library(
   LiteMath
