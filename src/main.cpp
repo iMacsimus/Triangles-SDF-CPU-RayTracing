@@ -6,7 +6,9 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
+#include <string>
 #include <unistd.h>
 
 #include <LiteMath/Image2d.h>
@@ -23,9 +25,13 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 using namespace cmesh4;
 using namespace LiteMath;
 using namespace LiteImage;
+using namespace std::string_literals;
 
 struct ApplicationState {
   bool shouldBeClosed = false;
+  bool meshLoaded = false;
+  bool gridBuilt = false;
+  bool octreeBuilt = false;
   sdl_adapters::WindowHandler pWindow;
   sdl_adapters::RendererHandler pRenderer;
   sdl_adapters::TextureHandler pSDLTexture;
@@ -34,6 +40,7 @@ struct ApplicationState {
   Camera camera;
 };
 void pollEvents(ApplicationState &state);
+cmesh4::SimpleMesh loadAndScale(std::filesystem::path path);
 
 int main(int, char **) {
   ApplicationState state;
@@ -45,34 +52,13 @@ int main(int, char **) {
   }
   auto project_path = exec_path.parent_path().parent_path();
   auto resources = project_path / "resources";
+  auto mesh_path = resources / "cube.obj";
 
-  auto mesh_path = resources / "MotorcycleCylinderHead.obj";
-  auto mesh = LoadMeshFromObj(mesh_path.c_str(), true);
-
-  auto bbox = calc_bbox(mesh);
-  auto center = (bbox.boxMin + bbox.boxMax) / 2.0f;
-  auto scale = length(bbox.boxMax - center);
-  for (auto &v : mesh.vPos4f) {
-    auto w = v.w;
-    v /= w;
-    float3 scaled = to_float3(v);
-    scaled -= center;
-    scaled /= scale;
-    v = to_float4(scaled, 1.0f);
-    v *= w;
-  }
-
-  BVHBuilder bvhBuilder;
-  auto b = std::chrono::high_resolution_clock::now();
-  bvhBuilder.perform(std::move(mesh));
-  TrivialMeshRenderer renderer;
-  //renderer.mesh = std::move(bvhBuilder.result());
-  auto e = std::chrono::high_resolution_clock::now();
-  std::cout << static_cast<float>(
-                   std::chrono::duration_cast<std::chrono::microseconds>(e - b)
-                       .count()) /
-                   1e3f
-            << "ms" << std::endl;
+  BVHBuilder bvh;
+  cmesh4::SimpleMesh mesh;
+  std::future<void> asyncResult;
+  bool needToLoadMesh = false;
+  int dotsCount = 3;
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -88,7 +74,7 @@ int main(int, char **) {
       state.W, state.H);
   state.image.resize(state.W, state.H);
   state.camera =
-      Camera({0.0, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+      Camera({0.0, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
 
   // Setup Dear ImGui context
   auto pImGuiContext = imgui_adaptors::createContext();
@@ -101,10 +87,6 @@ int main(int, char **) {
   auto &imguiBackend = imgui_adaptors::BackendManager::getInstance();
   imguiBackend.tryToInitialize(pImGuiContext, state.pWindow, state.pRenderer);
 
-  int frames_count = 0;
-  float average = 0.0f;
-  float time_min = std::numeric_limits<float>::infinity();
-  float time_max = 0.0f;
   while (!state.shouldBeClosed) {
     // Poll and handle events (inputs, window resize, etc.)
     pollEvents(state);
@@ -119,24 +101,69 @@ int main(int, char **) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    auto projMatrix = perspectiveMatrix(
-        45.0f, static_cast<float>(state.W) / static_cast<float>(state.H), 0.01f,
-        100.0f);
-    auto projInv = inverse4x4(projMatrix);
-    state.image.clear(0);
-    renderer.camera = state.camera;
-    renderer.projInv = projInv;
-    float time = drawBVHTriangles(state.image, state.camera, projInv, bvhBuilder);
-    average = (average * static_cast<float>(frames_count) + time) /
-              (static_cast<float>(frames_count) + 1.0f);
-    ++frames_count;
-    time_min = std::min(time, time_min);
-    time_max = std::max(time, time_max);
+    if (needToLoadMesh) {
+      ImVec2 windowSize = {300.0f, 100.0f};
+      ImGui::SetNextWindowSize(windowSize);
+      ImGui::SetNextWindowPos(
+          ImVec2{(static_cast<float>(state.W) - windowSize[0]) / 2.0f,
+                 (static_cast<float>(state.H) - windowSize[1]) / 2.0f});
+      imgui_adaptors::WindowGuard wg("Mesh Loading", nullptr,
+                                     ImGuiWindowFlags_NoCollapse |
+                                         ImGuiWindowFlags_NoResize);
+      std::string dots(dotsCount, '.');
+      ImGui::Text("Reading file and construct BVH.");
+      ImGui::Text("Please, wait%s", dots.c_str());
+      dotsCount = (dotsCount % 3) + 1;
+      if (asyncResult.wait_for(std::chrono::milliseconds(30)) ==
+          std::future_status::ready) {
+        needToLoadMesh = false;
+        state.meshLoaded = true;
+        state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});;
+      }
+    }
 
     // Window "Properties"
     {
       // starts the window, ends when out of the scope
       imgui_adaptors::WindowGuard wg("Properties");
+
+      if (ImGui::Button("Load mesh")) {
+        needToLoadMesh = true;
+        state.meshLoaded = false;
+        std::string command =
+            "zenity --file-selection --title=\"Select model\" --filename=\""s +
+            mesh_path.c_str() +
+            "\" --file-filter=\"OBJ Files | *.obj\" --file-filter=\"Grid Files "
+            "| *.grid\" --file-filter=\"Octree Files | *.octree\"";
+        std::cout << command << std::endl;
+        FILE *pipe = popen(command.c_str(), "r");
+        char buffer[PATH_MAX + 1] = {};
+        std::string result = "";
+        while (fgets(buffer, sizeof(buffer) - 1, pipe) != nullptr) {
+          result += buffer;
+          std::fill(buffer, buffer + sizeof(buffer), 0);
+        }
+        result.pop_back();
+        mesh_path = result;
+        pclose(pipe);
+
+        asyncResult = std::async(std::launch::async, [&]() {
+          mesh = loadAndScale(mesh_path);
+          bvh.perform(std::move(mesh));
+        });
+      }
+
+      float time = 0.0f;
+
+      if (state.meshLoaded) {
+        state.image.clear(0);
+        auto proj = perspectiveMatrix(
+            45.0f, static_cast<float>(state.W) / static_cast<float>(state.H),
+            0.01f, 100.0f);
+        auto projInv = inverse4x4(proj);
+        time = drawBVHTriangles(state.image, state.camera, projInv, bvh);
+      }
+
       float3 cameraNewPos = state.camera.position();
       if (ImGui::InputFloat3("Camera Position", cameraNewPos.M)) {
         state.camera.resetPosition(cameraNewPos);
@@ -148,9 +175,11 @@ int main(int, char **) {
                   right.z);
       ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
       ImGui::Text("Render Time: %.03fms", time);
-      ImGui::Text("Average Time: %.03fms", average);
-      ImGui::Text("Min Time: %.03fms", time_min);
-      ImGui::Text("Max Time: %.03fms", time_max);
+      if (state.meshLoaded) {
+        ImGui::Text("BVH memory usage: %f MiB",
+                    static_cast<float>(bvh.nodesCount() * sizeof(BVH8Node)) /
+                        static_cast<float>(2 << 20));
+      }
     }
 
     // Rendering
@@ -198,9 +227,10 @@ void pollEvents(ApplicationState &state) {
     if (event.type == SDL_EventType::SDL_MOUSEWHEEL &&
         event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
         !io.WantCaptureMouse) {
-      float r = static_cast<float>(event.wheel.y);
+      float distance = length(state.camera.target() - state.camera.position());
+      float r = static_cast<float>(event.wheel.y) * distance / 25.0f;
       state.camera.resetPosition(state.camera.position() +
-                                 state.camera.forward() * r / 5.0f);
+                                 state.camera.forward() * r);
     }
     if (event.type == SDL_EventType::SDL_KEYDOWN &&
         event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
@@ -234,4 +264,23 @@ void pollEvents(ApplicationState &state) {
         shift = 1.0f;
     }
   }
+}
+
+cmesh4::SimpleMesh loadAndScale(std::filesystem::path path) {
+  auto mesh = LoadMeshFromObj(path.c_str(), true);
+
+  auto bbox = calc_bbox(mesh);
+  auto center = (bbox.boxMin + bbox.boxMax) / 2.0f;
+  auto scale = length(bbox.boxMax - center);
+  for (auto &v : mesh.vPos4f) {
+    auto w = v.w;
+    v /= w;
+    float3 scaled = to_float3(v);
+    scaled -= center;
+    scaled /= scale;
+    v = to_float4(scaled, 1.0f);
+    v *= w;
+  }
+
+  return mesh;
 }

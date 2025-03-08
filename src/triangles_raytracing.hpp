@@ -102,6 +102,7 @@ public:
                     const LiteMath::float3 &rayDir, float tNear,
                     float tFar) const;
   cmesh4::SimpleMesh &&result() { return std::move(m_mesh); }
+  size_t nodesCount() const noexcept { return m_nodes.size(); }
 
 private:
   struct DivisionResult {
@@ -156,5 +157,5 @@ public:
 };
 
 float drawBVHTriangles(LiteImage::Image2D<uint32_t> &buffer,
-                      const Camera &camera, const LiteMath::float4x4 projInv,
-                      const BVHBuilder &builder);
+                       const Camera &camera, const LiteMath::float4x4 projInv,
+                       const BVHBuilder &builder);

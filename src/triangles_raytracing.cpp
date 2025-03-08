@@ -295,8 +295,8 @@ void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
   m_indicesY.resize(m_mesh.IndicesNum());
   m_indicesZ.resize(m_mesh.IndicesNum());
 
-  m_nodes.reserve(m_mesh.TrianglesNum() * 2);
   m_nodes = {BVH8Node{}};
+  m_nodes.reserve(m_mesh.TrianglesNum() * 2);
 #pragma omp parallel num_threads(omp_get_max_threads())
   {
 #pragma omp single
