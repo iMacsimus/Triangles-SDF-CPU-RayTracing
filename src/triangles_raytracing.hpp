@@ -5,67 +5,7 @@
 
 #include "camera.hpp"
 #include "mesh.h"
-
-struct TrivialMeshRenderer {
-public:
-  cmesh4::SimpleMesh mesh;
-  Camera camera;
-  LiteMath::float4x4 projInv;
-
-public:
-  float draw(LiteImage::Image2D<uint32_t> &buffer) const;
-};
-
-inline LiteMath::BBox3f update_box(LiteMath::BBox3f box, LiteMath::float4 v) {
-  v /= v.w;
-  box.boxMin = LiteMath::min(box.boxMin, to_float3(v));
-  box.boxMax = LiteMath::max(box.boxMax, to_float3(v));
-  return box;
-}
-
-inline LiteMath::BBox3f calc_bbox(const cmesh4::SimpleMesh &mesh) {
-  LiteMath::BBox3f bbox;
-  bbox.boxMin = LiteMath::float3{std::numeric_limits<float>::infinity()};
-  bbox.boxMax = -bbox.boxMin;
-  for (auto &v : mesh.vPos4f) {
-    bbox = update_box(bbox, v);
-  }
-  return bbox;
-}
-
-inline LiteMath::BBox3f calc_bbox(cmesh4::SimpleMesh &mesh, size_t start,
-                                  size_t end) {
-  LiteMath::BBox3f bbox;
-  bbox.boxMin = LiteMath::float3{std::numeric_limits<float>::infinity()};
-  bbox.boxMax = -bbox.boxMin;
-  for (size_t id = start; id < end; ++id) {
-    auto v = mesh.vPos4f[mesh.indices[id]];
-    bbox = update_box(bbox, v);
-  }
-  return bbox;
-}
-
-inline LiteMath::BBox3f calc_bbox(cmesh4::SimpleMesh &mesh,
-                                  const uint32_t ids[3]) {
-  LiteMath::BBox3f bbox;
-  bbox.boxMin = LiteMath::float3{std::numeric_limits<float>::infinity()};
-  bbox.boxMax = -bbox.boxMin;
-  bbox = update_box(bbox, mesh.vPos4f[ids[0]]);
-  bbox = update_box(bbox, mesh.vPos4f[ids[1]]);
-  bbox = update_box(bbox, mesh.vPos4f[ids[2]]);
-  return bbox;
-}
-
-inline float surfaceArea(LiteMath::BBox3f box) {
-  LiteMath::float3 delta = box.boxMax - box.boxMin;
-  return 2 * (delta.x * delta.y + delta.x * delta.z + delta.y * delta.z);
-}
-
-struct HitInfo {
-  bool hitten = false;
-  float t = std::numeric_limits<float>::infinity();
-  LiteMath::float3 normal;
-};
+#include "raytracing.hpp"
 
 struct Box8 {
   float xMin[8];
@@ -95,12 +35,12 @@ struct BVH8Node {
   bool isLeaf = false;
 };
 
-class BVHBuilder {
+class BVHBuilder : public IScene {
 public:
   void perform(cmesh4::SimpleMesh mesh);
   HitInfo intersect(const LiteMath::float3 &rayPos,
                     const LiteMath::float3 &rayDir, float tNear,
-                    float tFar) const;
+                    float tFar) const override;
   cmesh4::SimpleMesh &&result() { return std::move(m_mesh); }
   size_t nodesCount() const noexcept { return m_nodes.size(); }
 
@@ -155,7 +95,3 @@ public:
   int size() const { return count; }
   bool isEmpty() const { return count == 0; }
 };
-
-float drawBVHTriangles(LiteImage::Image2D<uint32_t> &buffer,
-                       const Camera &camera, const LiteMath::float4x4 projInv,
-                       const BVHBuilder &builder);

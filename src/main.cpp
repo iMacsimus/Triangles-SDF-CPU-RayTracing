@@ -35,7 +35,7 @@ struct ApplicationState {
   sdl_adapters::WindowHandler pWindow;
   sdl_adapters::RendererHandler pRenderer;
   sdl_adapters::TextureHandler pSDLTexture;
-  Image2D<uint32_t> image;
+  FrameBuffer frameBuf;
   int W = 1280, H = 720;
   Camera camera;
 };
@@ -54,6 +54,7 @@ int main(int, char **) {
   auto resources = project_path / "resources";
   auto mesh_path = resources / "cube.obj";
 
+  Renderer renderer;
   BVHBuilder bvh;
   cmesh4::SimpleMesh mesh;
   std::future<void> asyncResult;
@@ -72,7 +73,7 @@ int main(int, char **) {
   state.pSDLTexture = sdl_adapters::createTexture(
       state.pRenderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING,
       state.W, state.H);
-  state.image.resize(state.W, state.H);
+  state.frameBuf.resize(state.W, state.H);
   state.camera =
       Camera({0.0, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
 
@@ -159,12 +160,12 @@ int main(int, char **) {
       float time = 0.0f;
 
       if (state.meshLoaded) {
-        state.image.clear(0);
+        state.frameBuf.clear();
         auto proj = perspectiveMatrix(
             45.0f, static_cast<float>(state.W) / static_cast<float>(state.H),
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
-        time = drawBVHTriangles(state.image, state.camera, projInv, bvh);
+        time = renderer.draw(bvh, state.frameBuf, state.camera, projInv);
       }
 
       float3 cameraNewPos = state.camera.position();
@@ -187,7 +188,7 @@ int main(int, char **) {
 
     // Rendering
     SDL_RenderClear(state.pRenderer.get());
-    SDL_UpdateTexture(state.pSDLTexture.get(), nullptr, state.image.data(),
+    SDL_UpdateTexture(state.pSDLTexture.get(), nullptr, state.frameBuf.color.data(),
                       state.W * sizeof(uint32_t));
     SDL_RenderCopy(state.pRenderer.get(), state.pSDLTexture.get(), nullptr,
                    nullptr);
@@ -221,7 +222,7 @@ void pollEvents(ApplicationState &state) {
       state.pSDLTexture = sdl_adapters::createTexture(
           state.pRenderer, SDL_PIXELFORMAT_ABGR8888,
           SDL_TEXTUREACCESS_STREAMING, state.W, state.H);
-      state.image.resize(state.W, state.H);
+      state.frameBuf.resize(state.W, state.H);
     }
     if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !io.WantCaptureMouse) {
       auto [dx, dy] = io.MouseDelta;
