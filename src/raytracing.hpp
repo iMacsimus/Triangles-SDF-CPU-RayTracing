@@ -80,8 +80,23 @@ public:
   virtual ~IScene() {}
 };
 
-enum class ShadingMode
-{
+class SceneUnion : public IScene {
+public:
+  SceneUnion(std::shared_ptr<IScene> pFirst, std::shared_ptr<IScene> pSecond)
+      : m_pFirst(pFirst), m_pSecond(pSecond) {}
+  HitInfo intersect(const LiteMath::float3 &rayPos,
+                    const LiteMath::float3 &rayDir, float tNear,
+                    float tFar) const override {
+    HitInfo intersect1 = m_pFirst->intersect(rayPos, rayDir, tNear, tFar);
+    HitInfo intersect2 = m_pSecond->intersect(rayPos, rayDir, tNear, tFar);
+    return (intersect1.t < intersect2.t) ? intersect1 : intersect2;
+  }
+
+private:
+  std::shared_ptr<IScene> m_pFirst, m_pSecond;
+};
+
+enum class ShadingMode {
   Normal,
   Lambert,
   Color
@@ -90,12 +105,19 @@ enum class ShadingMode
 struct Renderer {
 public:
   LiteMath::float3 lightPos;
-  bool enableShadows = false;
-  bool enableReflections = false;
+  bool enableShadows = true;
+  bool enableReflections = true;
   ShadingMode shadingMode = ShadingMode::Lambert;
+
 public:
-  float draw(IScene &scene, FrameBuffer &frameBuffer, const Camera &camera,
-             const LiteMath::float4x4 projInv);
+  float draw(const IScene &scene, FrameBuffer &frameBuffer,
+             const Camera &camera, const LiteMath::float4x4 projInv) const;
+
+private:
+  std::pair<LiteMath::float4, float>
+  intersectionColor(const IScene &scene, const LiteMath::float3 &rayPos,
+                    const LiteMath::float3 &rayDir, float tNear, float tFar,
+                    float tPrev, int maxDepth = 2) const;
 };
 
 class Plane final : public IScene {
@@ -134,8 +156,8 @@ public:
     }
 
     LiteMath::float3 intersectionPoint = rayPos + t * rayDir;
-    int x = static_cast<int>(dot(intersectionPoint, m_basis1));
-    int y = static_cast<int>(dot(intersectionPoint, m_basis2));
+    int x = static_cast<int>(std::ceil(dot(intersectionPoint, m_basis1)));
+    int y = static_cast<int>(std::ceil(dot(intersectionPoint, m_basis2)));
     LiteMath::float3 color =
         (x + y) % 2 == 0 ? LiteMath::float3(0.0f) : LiteMath::float3(1.0f);
 
@@ -143,6 +165,7 @@ public:
     result.t = t;
     result.normal = m_normal;
     result.albedo = color;
+    result.reflectiveness = 0.3f;
     return result;
   }
 

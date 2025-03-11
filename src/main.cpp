@@ -56,9 +56,10 @@ int main(int, char **) {
 
   Renderer renderer;
   renderer.lightPos = {2, 2, 2};
-  renderer.enableShadows = true;
-  BVHBuilder bvhScene;
-  Plane groundPlane(float3{0.0f, 1.0f, 0.0f}, -1);
+  auto pBVHScene = std::make_shared<BVHBuilder>();
+  auto pGroundPlane =
+      std::make_shared<Plane>(LiteMath::float3{0.0f, 1.0f, 0.0f}, -1.0f);
+  SceneUnion fullScene(pBVHScene, pGroundPlane);
   bool enableGroundPlane = true;
   cmesh4::SimpleMesh mesh;
   std::future<void> asyncResult;
@@ -161,7 +162,9 @@ int main(int, char **) {
 
         asyncResult = std::async(std::launch::async, [&]() {
           mesh = loadAndScale(mesh_path);
-          bvhScene.perform(std::move(mesh));
+          auto newBox = calc_bbox(mesh);
+          *pGroundPlane = Plane(float3{0.0f,1.0f, 0.0f}, newBox.boxMin.y);
+          pBVHScene->perform(std::move(mesh));
         });
       }
 
@@ -173,10 +176,10 @@ int main(int, char **) {
             45.0f, static_cast<float>(state.W) / static_cast<float>(state.H),
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
-        time = renderer.draw(bvhScene, state.frameBuf, state.camera, projInv);
-        if (enableGroundPlane) {
-          time +=
-              renderer.draw(groundPlane, state.frameBuf, state.camera, projInv);
+        if (!enableGroundPlane) {
+          time = renderer.draw(*pBVHScene, state.frameBuf, state.camera, projInv);
+        } else {
+          time = renderer.draw(fullScene, state.frameBuf, state.camera, projInv);
         }
       }
 
@@ -205,7 +208,7 @@ int main(int, char **) {
       if (state.meshLoaded) {
         ImGui::Text(
             "\tBVH memory usage: %f MiB",
-            static_cast<float>(bvhScene.nodesCount() * sizeof(BVH8Node)) /
+            static_cast<float>(pBVHScene->nodesCount() * sizeof(BVH8Node)) /
                 static_cast<float>(2 << 20));
       }
     }
