@@ -14,6 +14,9 @@ void Camera::rotate(float dx, float dy) noexcept {
       static_cast<Quaternion>(qPitch * qYaw * m_orientation).normalized();
 
   updateVectors();
+  if (m_lockUp) {
+    updateOrientation(m_lockedUp);
+  }
 }
 
 void Camera::updateVectors() noexcept {

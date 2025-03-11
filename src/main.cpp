@@ -66,7 +66,7 @@ int main(int, char **) {
   bool needToLoadMesh = false;
   int dotsCount = 3;
 
-  int currentShadingMode = 2;
+  int currentShadingMode = 1;
   ShadingMode shadingModes[3] = {ShadingMode::Color, ShadingMode::Lambert,
                                  ShadingMode::Normal};
   const char *shadinModesStr[3] = {"Color", "Lambert", "Normal"};
@@ -86,6 +86,7 @@ int main(int, char **) {
   state.frameBuf.resize(state.W, state.H);
   state.camera =
       Camera({0.0, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+  state.camera.setLockUp(true);
 
   // Setup Dear ImGui context
   auto pImGuiContext = imgui_adaptors::createContext();
@@ -130,6 +131,7 @@ int main(int, char **) {
         needToLoadMesh = false;
         state.meshLoaded = true;
         state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});
+        state.camera.setLockUp(true);
       }
     }
 
@@ -163,7 +165,7 @@ int main(int, char **) {
         asyncResult = std::async(std::launch::async, [&]() {
           mesh = loadAndScale(mesh_path);
           auto newBox = calc_bbox(mesh);
-          *pGroundPlane = Plane(float3{0.0f,1.0f, 0.0f}, newBox.boxMin.y);
+          *pGroundPlane = Plane(float3{0.0f, 1.0f, 0.0f}, newBox.boxMin.y);
           pBVHScene->perform(std::move(mesh));
         });
       }
@@ -177,9 +179,11 @@ int main(int, char **) {
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
         if (!enableGroundPlane) {
-          time = renderer.draw(*pBVHScene, state.frameBuf, state.camera, projInv);
+          time =
+              renderer.draw(*pBVHScene, state.frameBuf, state.camera, projInv);
         } else {
-          time = renderer.draw(fullScene, state.frameBuf, state.camera, projInv);
+          time =
+              renderer.draw(fullScene, state.frameBuf, state.camera, projInv);
         }
       }
 
@@ -188,6 +192,9 @@ int main(int, char **) {
       if (ImGui::InputFloat3("Camera Position", cameraNewPos.M)) {
         state.camera.resetPosition(cameraNewPos);
       }
+      bool isLockedUp = state.camera.isLockedUp();
+      ImGui::Checkbox("Lock vector Up", &isLockedUp);
+      state.camera.setLockUp(isLockedUp);
 
       ImGui::Text("Renderer Settings:");
       ImGui::Checkbox("Ground Plane", &enableGroundPlane);
@@ -272,19 +279,23 @@ void pollEvents(ApplicationState &state) {
         state.camera =
             Camera({0, 0, state.camera.target().z + distance * shift},
                    state.camera.target());
+        state.camera.setLockUp(true);
         break;
       case SDLK_KP_3:
         state.camera =
             Camera({state.camera.target().x + distance * shift, 0, 0},
                    state.camera.target());
+        state.camera.setLockUp(true);
         break;
       case SDLK_KP_7:
         state.camera =
             Camera({0, state.camera.target().y + distance * shift, 0},
                    state.camera.target(), {0, 0, -1 * shift});
+        state.camera.setLockUp(true);
         break;
       case SDLK_LSHIFT:
         shift = -1.0f;
+        state.camera.setLockUp(true);
         break;
       }
     }

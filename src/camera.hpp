@@ -29,15 +29,20 @@ public:
   LiteMath::float3 up() const noexcept {
     return LiteMath::normalize(rotateVector({0.0f, 1.0f, 0.0f}, m_orientation));
   }
-  LiteMath::float3 right() const noexcept { 
+  LiteMath::float3 right() const noexcept {
     return LiteMath::normalize(rotateVector({1.0f, 0.0f, 0.0f}, m_orientation));
   }
   LiteMath::float3 forward() const noexcept {
     return LiteMath::normalize(target() - position());
   }
-  float sensetivity() const noexcept {
-    return m_sensetivity;
+  float sensetivity() const noexcept { return m_sensetivity; }
+  void setLockUp(bool to) {
+    if (!m_lockUp && to) {
+      m_lockedUp = up();
+    }
+    m_lockUp = to;
   }
+  bool isLockedUp() { return m_lockUp; }
 
 private:
   void updateVectors() noexcept;
@@ -48,6 +53,8 @@ private:
   LiteMath::float3 m_target;
   Quaternion m_orientation;
   float m_sensetivity = 0.01f;
+  bool m_lockUp = false;
+  LiteMath::float3 m_lockedUp;
 
 public:
   ~Camera() = default;
