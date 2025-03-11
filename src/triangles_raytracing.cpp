@@ -1,3 +1,4 @@
+#include <execution>
 #include <chrono>
 #include <omp.h>
 #include <random>
@@ -31,17 +32,17 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
                                                  uint32_t axes) {
   switch (axes) {
   case 0:
-    std::sort(reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<0>(m_mesh));
     break;
   case 1:
-    std::sort(reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<1>(m_mesh));
     break;
   case 2:
-    std::sort(reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<2>(m_mesh));
     break;
@@ -224,6 +225,7 @@ void BVHBuilder::createNode(size_t offset, size_t start, size_t end) {
 }
 
 void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
+  auto b = std::chrono::high_resolution_clock::now();
   m_mesh = std::move(mesh);
 
   m_leftBoxes.resize(m_mesh.TrianglesNum());
@@ -250,6 +252,9 @@ void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
   m_rightBoxes.shrink_to_fit();
   m_indicesY.shrink_to_fit();
   m_indicesZ.shrink_to_fit();
+  auto e = std::chrono::high_resolution_clock::now();
+  float t = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(e-b).count())/1e3f;
+  std::cout << "BVH construction: " << t << "ms" << std::endl;
 }
 
 HitInfo BVHBuilder::intersect(const LiteMath::float3 &rayPos,

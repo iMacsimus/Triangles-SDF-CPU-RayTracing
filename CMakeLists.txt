@@ -4,6 +4,7 @@ project(SdfTask CXX)
 
 find_package(SDL2 REQUIRED)
 find_package(OpenMP REQUIRED)
+find_package(TBB REQUIRED)
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -fsanitize=thread -fsanitize=undefined")
 
@@ -58,7 +59,8 @@ target_link_libraries(
     ispc_ray_pack
     LiteMath
     ImGui_SDL
-    OpenMP::OpenMP_CXX)
+    OpenMP::OpenMP_CXX
+    TBB::tbb)
 target_include_directories(
     ${APP_NAME} PUBLIC 
       ${SDL2_INCLUDE_DIRS} 
