@@ -59,10 +59,16 @@ int main(int, char **) {
   renderer.enableShadows = true;
   BVHBuilder bvhScene;
   Plane groundPlane(float3{0.0f, 1.0f, 0.0f}, -1);
+  bool enableGroundPlane = true;
   cmesh4::SimpleMesh mesh;
   std::future<void> asyncResult;
   bool needToLoadMesh = false;
   int dotsCount = 3;
+
+  int currentShadingMode = 2;
+  ShadingMode shadingModes[3] = {ShadingMode::Color, ShadingMode::Lambert,
+                                 ShadingMode::Normal};
+  const char *shadinModesStr[3] = {"Color", "Lambert", "Normal"};
 
   auto &sdlManager = sdl_adapters::SDLManager::getInstance();
   sdlManager.tryToInitialize(SDL_INIT_VIDEO | SDL_INIT_TIMER);
@@ -133,7 +139,7 @@ int main(int, char **) {
       imgui_adaptors::WindowGuard wg("Preferences", nullptr,
                                      ImGuiWindowFlags_NoResize |
                                          ImGuiWindowFlags_NoMove);
-
+      ImGui::Text("Mesh Settings:");
       if (ImGui::Button("Load mesh")) {
         needToLoadMesh = true;
         state.meshLoaded = false;
@@ -168,24 +174,39 @@ int main(int, char **) {
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
         time = renderer.draw(bvhScene, state.frameBuf, state.camera, projInv);
-        time += renderer.draw(groundPlane, state.frameBuf, state.camera, projInv);
+        if (enableGroundPlane) {
+          time +=
+              renderer.draw(groundPlane, state.frameBuf, state.camera, projInv);
+        }
       }
 
+      ImGui::Text("Camera Settings:");
       float3 cameraNewPos = state.camera.position();
       if (ImGui::InputFloat3("Camera Position", cameraNewPos.M)) {
         state.camera.resetPosition(cameraNewPos);
       }
+
+      ImGui::Text("Renderer Settings:");
+      ImGui::Checkbox("Ground Plane", &enableGroundPlane);
+      ImGui::ListBox("Shading Mode", &currentShadingMode, shadinModesStr, 3);
+      renderer.shadingMode = shadingModes[currentShadingMode];
+      if (renderer.shadingMode == ShadingMode::Lambert) {
+        ImGui::Checkbox("Enable shadows", &renderer.enableShadows);
+        ImGui::Checkbox("Enable reflections", &renderer.enableReflections);
+      }
       float3 up = state.camera.up();
       float3 right = state.camera.right();
-      ImGui::Text("Camera Up (%0.3f, %0.3f, %0.3f)", up.x, up.y, up.z);
-      ImGui::Text("Camera Right (%0.3f, %0.3f, %0.3f)", right.x, right.y,
+      ImGui::Text("Debug Info:");
+      ImGui::Text("\tCamera Up (%0.3f, %0.3f, %0.3f)", up.x, up.y, up.z);
+      ImGui::Text("\tCamera Right (%0.3f, %0.3f, %0.3f)", right.x, right.y,
                   right.z);
-      ImGui::Text("Window Resolution: %dx%d", state.W, state.H);
-      ImGui::Text("Render Time: %.03fms", time);
+      ImGui::Text("\tWindow Resolution: %dx%d", state.W, state.H);
+      ImGui::Text("\tRender Time: %.03fms", time);
       if (state.meshLoaded) {
-        ImGui::Text("BVH memory usage: %f MiB",
-                    static_cast<float>(bvhScene.nodesCount() * sizeof(BVH8Node)) /
-                        static_cast<float>(2 << 20));
+        ImGui::Text(
+            "\tBVH memory usage: %f MiB",
+            static_cast<float>(bvhScene.nodesCount() * sizeof(BVH8Node)) /
+                static_cast<float>(2 << 20));
       }
     }
 
