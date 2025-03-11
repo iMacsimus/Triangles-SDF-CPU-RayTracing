@@ -360,39 +360,3 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
 
   return result;
 }
-
-float drawBVHTriangles(LiteImage::Image2D<uint32_t> &buffer,
-                       const Camera &camera, const LiteMath::float4x4 projInv,
-                       const BVHBuilder &builder) {
-  int width = buffer.width();
-  int height = buffer.height();
-  float3 rayPos = camera.position();
-  auto viewMatrix = camera.lookAtMatrix();
-  auto viewInv = inverse4x4(viewMatrix);
-  auto b = std::chrono::high_resolution_clock::now();
-#ifdef NDEBUG
-#pragma omp parallel for schedule(dynamic)
-#endif
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      float4 rayDir4 = EyeRayDir4f(
-          static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f,
-          static_cast<float>(width), static_cast<float>(height), projInv);
-      rayDir4.w = 0.0f;
-      rayDir4 = viewInv * rayDir4;
-      float3 rayDir = to_float3(rayDir4);
-      auto hit = builder.intersect(rayPos, rayDir, 0.0f, 100.0f);
-      if (hit.hitten) {
-        float4 color = to_float4(hit.normal, 1.0f);
-        color += 1.0f;
-        color /= 2.0f;
-        buffer[int2{x, height - y - 1}] = color_pack_rgba(color);
-      }
-    }
-  }
-  auto e = std::chrono::high_resolution_clock::now();
-  return static_cast<float>(
-             std::chrono::duration_cast<std::chrono::microseconds>(e - b)
-                 .count()) /
-         1e3f;
-}

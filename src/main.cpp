@@ -55,7 +55,10 @@ int main(int, char **) {
   auto mesh_path = resources / "cube.obj";
 
   Renderer renderer;
-  BVHBuilder bvh;
+  renderer.lightPos = {2, 2, 2};
+  renderer.enableShadows = true;
+  BVHBuilder bvhScene;
+  Plane groundPlane(float3{0.0f, 1.0f, 0.0f}, -1);
   cmesh4::SimpleMesh mesh;
   std::future<void> asyncResult;
   bool needToLoadMesh = false;
@@ -120,7 +123,6 @@ int main(int, char **) {
         needToLoadMesh = false;
         state.meshLoaded = true;
         state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});
-        ;
       }
     }
 
@@ -153,7 +155,7 @@ int main(int, char **) {
 
         asyncResult = std::async(std::launch::async, [&]() {
           mesh = loadAndScale(mesh_path);
-          bvh.perform(std::move(mesh));
+          bvhScene.perform(std::move(mesh));
         });
       }
 
@@ -165,7 +167,8 @@ int main(int, char **) {
             45.0f, static_cast<float>(state.W) / static_cast<float>(state.H),
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
-        time = renderer.draw(bvh, state.frameBuf, state.camera, projInv);
+        time = renderer.draw(bvhScene, state.frameBuf, state.camera, projInv);
+        time += renderer.draw(groundPlane, state.frameBuf, state.camera, projInv);
       }
 
       float3 cameraNewPos = state.camera.position();
@@ -181,15 +184,15 @@ int main(int, char **) {
       ImGui::Text("Render Time: %.03fms", time);
       if (state.meshLoaded) {
         ImGui::Text("BVH memory usage: %f MiB",
-                    static_cast<float>(bvh.nodesCount() * sizeof(BVH8Node)) /
+                    static_cast<float>(bvhScene.nodesCount() * sizeof(BVH8Node)) /
                         static_cast<float>(2 << 20));
       }
     }
 
     // Rendering
     SDL_RenderClear(state.pRenderer.get());
-    SDL_UpdateTexture(state.pSDLTexture.get(), nullptr, state.frameBuf.color.data(),
-                      state.W * sizeof(uint32_t));
+    SDL_UpdateTexture(state.pSDLTexture.get(), nullptr,
+                      state.frameBuf.color.data(), state.W * sizeof(uint32_t));
     SDL_RenderCopy(state.pRenderer.get(), state.pSDLTexture.get(), nullptr,
                    nullptr);
 

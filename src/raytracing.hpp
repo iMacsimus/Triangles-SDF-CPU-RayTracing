@@ -3,8 +3,8 @@
 #include <LiteMath/Image2d.h>
 #include <LiteMath/LiteMath.h>
 
-#include "mesh.h"
 #include "camera.hpp"
+#include "mesh.h"
 
 struct FrameBuffer {
   LiteImage::Image2D<uint32_t> color;
@@ -80,13 +80,88 @@ public:
   virtual ~IScene() {}
 };
 
+enum class ShadingMode
+{
+  Normal,
+  Lambert,
+  Color
+};
+
 struct Renderer {
 public:
   LiteMath::float3 lightPos;
   bool enableShadows = false;
   bool enableReflections = false;
-
+  ShadingMode shadingMode = ShadingMode::Lambert;
 public:
   float draw(IScene &scene, FrameBuffer &frameBuffer, const Camera &camera,
              const LiteMath::float4x4 projInv);
+};
+
+class Plane final : public IScene {
+public:
+  Plane(const LiteMath::float3 &normal, float offset = 0)
+      : m_normal(normal), m_offset(offset) {
+    recalcBasis();
+  }
+  Plane(const LiteMath::float3 &normal, const LiteMath::float3 &pointOnPlane)
+      : m_normal(normal), m_offset(dot(normal, pointOnPlane)) {
+    recalcBasis();
+  }
+  Plane(float a, float b, float c, float d) {
+    m_normal = LiteMath::normalize(LiteMath::float3{a, b, c});
+    m_offset = -d / LiteMath::length(LiteMath::float3{a, b, c});
+    recalcBasis();
+  }
+
+public:
+  HitInfo intersect(const LiteMath::float3 &rayPos,
+                    const LiteMath::float3 &rayDir, float tNear,
+                    float tFar) const {
+    HitInfo result;
+
+    // dot(o+t*d, n) - offset == 0 <=> dot(o, n) + t*dot(d, n) - offset == 0
+    // t = (offset - dot(o, n)) / (dot(d, n))
+    float dividor = LiteMath::dot(rayDir, m_normal);
+    if (std::abs(dividor) < 1e-8f) {
+      return result; // no hit
+    }
+
+    float t = (m_offset - dot(rayPos, m_normal)) / dividor;
+
+    if (t < tNear || t > tFar) {
+      return result; // no hit
+    }
+
+    LiteMath::float3 intersectionPoint = rayPos + t * rayDir;
+    int x = static_cast<int>(dot(intersectionPoint, m_basis1));
+    int y = static_cast<int>(dot(intersectionPoint, m_basis2));
+    LiteMath::float3 color =
+        (x + y) % 2 == 0 ? LiteMath::float3(0.0f) : LiteMath::float3(1.0f);
+
+    result.hitten = true;
+    result.t = t;
+    result.normal = m_normal;
+    result.albedo = color;
+    return result;
+  }
+
+private:
+  void recalcBasis() {
+    LiteMath::float3 absNormal = LiteMath::abs(m_normal);
+    if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
+      m_basis1 =
+          LiteMath::normalize(LiteMath::float3(m_normal.y, -m_normal.x, 0));
+    } else {
+      m_basis1 =
+          LiteMath::normalize(LiteMath::float3(0, m_normal.z, -m_normal.y));
+    }
+    m_basis2 = LiteMath::normalize(LiteMath::cross(m_basis1, m_normal));
+  }
+
+private:
+  LiteMath::float3 m_normal;
+  float m_offset; // plane <=> dot(normal, point) + offset = 0
+  LiteMath::float3 m_basis1;
+  LiteMath::float3 m_basis2;
 };

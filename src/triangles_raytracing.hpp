@@ -35,7 +35,7 @@ struct BVH8Node {
   bool isLeaf = false;
 };
 
-class BVHBuilder : public IScene {
+class BVHBuilder final: public IScene {
 public:
   void perform(cmesh4::SimpleMesh mesh);
   HitInfo intersect(const LiteMath::float3 &rayPos,

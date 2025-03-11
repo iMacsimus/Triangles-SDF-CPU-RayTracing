@@ -5,6 +5,11 @@
 using namespace LiteMath;
 using namespace LiteImage;
 
+inline float3 Lambert(const float3 &lightDir, const float3 &normal,
+                      const float3 &albedo) {
+  return std::max(dot(-lightDir, normal), 0.0f) * albedo;
+}
+
 float Renderer::draw(IScene &scene, FrameBuffer &frameBuffer,
                      const Camera &camera, const LiteMath::float4x4 projInv) {
   auto &[colorBuf, tBuf] = frameBuffer;
@@ -27,13 +32,40 @@ float Renderer::draw(IScene &scene, FrameBuffer &frameBuffer,
       rayDir4 = viewInv * rayDir4;
       float3 rayDir = to_float3(rayDir4);
       auto hit = scene.intersect(rayPos, rayDir, 0.0f, 100.0f);
-      if (hit.hitten && hit.t < tBuf[xy]) {
-        float4 color = to_float4(hit.normal, 1.0f);
-        color += 1.0f;
-        color /= 2.0f;
-        colorBuf[xy] = color_pack_rgba(color);
-        tBuf[xy] = hit.t;
+      if (!hit.hitten || (hit.t > tBuf[xy]))
+        continue;
+      tBuf[xy] = hit.t;
+      if (dot(hit.normal, rayDir) > 0) {
+        hit.normal *= -1.0f;
       }
+
+      float4 color;
+      if (shadingMode == ShadingMode::Normal) {
+        color = to_float4(hit.normal, 1.0f);
+        color = (color + 1.0f) / 2.0f;
+      } else if (shadingMode == ShadingMode::Color) {
+        color = to_float4(hit.albedo, 1.0f);
+      } else if (shadingMode == ShadingMode::Lambert) {
+        bool lightIsVisible = true;
+        float3 point = rayPos + hit.t * rayDir;
+        float3 shadowDir = normalize(lightPos-point);
+        if (enableShadows) {
+          HitInfo shadowHit = scene.intersect(point+shadowDir*0.01f, shadowDir, 0.01f, 100.0f);
+          lightIsVisible = !shadowHit.hitten;
+        }
+        if (!lightIsVisible) {
+          color = to_float4(hit.albedo * 0.1f, 1.0f);
+        } else {
+          color =
+              to_float4(LiteMath::min(hit.albedo * 0.1f +
+                                          Lambert(normalize(point - lightPos),
+                                                  hit.normal, hit.albedo),
+                                      float3(1.0f)),
+                        1.0f);
+          //TODO Reflections
+        }
+      }
+      colorBuf[xy] = color_pack_rgba(color);
     }
   }
   auto e = std::chrono::high_resolution_clock::now();
