@@ -111,21 +111,25 @@ int main(int, char **) {
                                      ImGuiWindowFlags_NoCollapse |
                                          ImGuiWindowFlags_NoResize);
       std::string dots(dotsCount, '.');
-      ImGui::Text("Reading file and construct BVH.");
+      ImGui::Text("Reading file and constructing BVH.");
       ImGui::Text("Please, wait%s", dots.c_str());
       dotsCount = (dotsCount % 3) + 1;
       if (asyncResult.wait_for(std::chrono::milliseconds(30)) ==
           std::future_status::ready) {
         needToLoadMesh = false;
         state.meshLoaded = true;
-        state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});;
+        state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});
+        ;
       }
     }
 
     // Window "Properties"
     {
-      // starts the window, ends when out of the scope
-      imgui_adaptors::WindowGuard wg("Properties");
+      ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+      ImGui::SetNextWindowSize(ImVec2(350.0f, static_cast<float>(state.H)));
+      imgui_adaptors::WindowGuard wg("Preferences", nullptr,
+                                     ImGuiWindowFlags_NoResize |
+                                         ImGuiWindowFlags_NoMove);
 
       if (ImGui::Button("Load mesh")) {
         needToLoadMesh = true;
@@ -135,7 +139,6 @@ int main(int, char **) {
             mesh_path.c_str() +
             "\" --file-filter=\"OBJ Files | *.obj\" --file-filter=\"Grid Files "
             "| *.grid\" --file-filter=\"Octree Files | *.octree\"";
-        std::cout << command << std::endl;
         FILE *pipe = popen(command.c_str(), "r");
         char buffer[PATH_MAX + 1] = {};
         std::string result = "";
@@ -260,8 +263,9 @@ void pollEvents(ApplicationState &state) {
     if (event.type == SDL_EventType::SDL_KEYUP &&
         event.window.windowID == SDL_GetWindowID(state.pWindow.get()) &&
         !io.WantCaptureMouse) {
-      if (event.key.keysym.sym == SDLK_LSHIFT)
+      if (event.key.keysym.sym == SDLK_LSHIFT) {
         shift = 1.0f;
+      }
     }
   }
 }

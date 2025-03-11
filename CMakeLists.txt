@@ -11,6 +11,7 @@ add_library(
   LiteMath
     ${CMAKE_SOURCE_DIR}/external/LiteMath/Image2d.cpp)
 target_include_directories(LiteMath PUBLIC ${CMAKE_SOURCE_DIR}/external/)
+target_compile_options(LiteMath PUBLIC -march=native)
 
 add_library(
   ImGui_SDL
@@ -63,4 +64,4 @@ target_include_directories(
       ${CMAKE_SOURCE_DIR}/src/core
       ${CMAKE_SOURCE_DIR}/src/
       ${CMAKE_SOURCE_DIR}/external/stb/)
-target_compile_options(${APP_NAME} PUBLIC -Wall -Wextra -Wshadow -Wconversion -Werror)
+target_compile_options(${APP_NAME} PUBLIC -march=native -Wall -Wextra -Wshadow -Wconversion -Werror)
