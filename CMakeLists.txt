@@ -42,7 +42,8 @@ set(
     ${CMAKE_SOURCE_DIR}/src/quaternion.cpp
     ${CMAKE_SOURCE_DIR}/src/camera.cpp
     ${CMAKE_SOURCE_DIR}/src/triangles_raytracing.cpp
-    ${CMAKE_SOURCE_DIR}/src/raytracing.cpp)
+    ${CMAKE_SOURCE_DIR}/src/raytracing.cpp
+    ${CMAKE_SOURCE_DIR}/src/grid_raytracing.cpp)
 
 enable_language(ISPC)
 set(CMAKE_ISPC_FLAGS "${CMAKE_ISPC_FLAGS} --pic")

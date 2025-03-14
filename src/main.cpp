@@ -17,6 +17,7 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <SDL_keycode.h>
 
 #include <camera.hpp>
+#include <grid_raytracing.hpp>
 #include <imgui_adaptors.hpp>
 #include <mesh.h>
 #include <sdl_adaptors.hpp>
@@ -29,7 +30,7 @@ using namespace std::string_literals;
 
 struct ApplicationState {
   bool shouldBeClosed = false;
-  bool meshLoaded = false;
+  bool modelLoaded = false;
   bool gridBuilt = false;
   bool octreeBuilt = false;
   sdl_adapters::WindowHandler pWindow;
@@ -56,14 +57,14 @@ int main(int, char **) {
 
   Renderer renderer;
   renderer.lightPos = {2, 2, 2};
-  auto pBVHScene = std::make_shared<BVHBuilder>();
+  std::shared_ptr<IScene> pScene;
   auto pGroundPlane =
       std::make_shared<Plane>(LiteMath::float3{0.0f, 1.0f, 0.0f}, -1.0f);
-  SceneUnion fullScene(pBVHScene, pGroundPlane);
+  SceneUnion fullScene(pScene, pGroundPlane);
   bool enableGroundPlane = true;
   cmesh4::SimpleMesh mesh;
   std::future<void> asyncResult;
-  bool needToLoadMesh = false;
+  bool needToLoadModel = false;
   int dotsCount = 3;
 
   int currentShadingMode = 1;
@@ -113,7 +114,7 @@ int main(int, char **) {
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    if (needToLoadMesh) {
+    if (needToLoadModel) {
       ImVec2 windowSize = {300.0f, 100.0f};
       ImGui::SetNextWindowSize(windowSize);
       ImGui::SetNextWindowPos(
@@ -128,8 +129,8 @@ int main(int, char **) {
       dotsCount = (dotsCount % 3) + 1;
       if (asyncResult.wait_for(std::chrono::milliseconds(30)) ==
           std::future_status::ready) {
-        needToLoadMesh = false;
-        state.meshLoaded = true;
+        needToLoadModel = false;
+        state.modelLoaded = true;
         state.camera = Camera({0.0f, 0.0f, 2.5f}, {0.0f, 0.0f, 0.0f});
         state.camera.setLockUp(true);
       }
@@ -144,8 +145,8 @@ int main(int, char **) {
                                          ImGuiWindowFlags_NoMove);
       ImGui::Text("Mesh Settings:");
       if (ImGui::Button("Load mesh")) {
-        needToLoadMesh = true;
-        state.meshLoaded = false;
+        needToLoadModel = true;
+        state.modelLoaded = false;
         std::string command =
             "zenity --file-selection --title=\"Select model\" --filename=\""s +
             mesh_path.c_str() +
@@ -163,24 +164,36 @@ int main(int, char **) {
         pclose(pipe);
 
         asyncResult = std::async(std::launch::async, [&]() {
-          mesh = loadAndScale(mesh_path);
-          auto newBox = calc_bbox(mesh);
-          *pGroundPlane = Plane(float3{0.0f, 1.0f, 0.0f}, newBox.boxMin.y);
-          pBVHScene->perform(std::move(mesh));
+          BBox3f modelBox;
+          if (mesh_path.extension() == ".obj") {
+            mesh = loadAndScale(mesh_path);
+            modelBox = calc_bbox(mesh);
+            auto pBVHScene = std::make_shared<BVHBuilder>();
+            pBVHScene->perform(std::move(mesh));
+            pScene = pBVHScene;
+          } else if (mesh_path.extension() == ".grid") {
+            modelBox.boxMin = float3{-1.0f};
+            modelBox.boxMax = float3{1.0f};
+            std::shared_ptr<SDFGrid> pGrid = std::make_shared<SDFGrid>();
+            loadSDFGrid(*pGrid, mesh_path.string());
+            pScene = pGrid;
+          }
+
+          *pGroundPlane = Plane(float3{0.0f, 1.0f, 0.0f}, modelBox.boxMin.y);
+          fullScene = SceneUnion(pScene, pGroundPlane);
         });
       }
 
       float time = 0.0f;
 
-      if (state.meshLoaded) {
+      if (state.modelLoaded) {
         state.frameBuf.clear();
         auto proj = perspectiveMatrix(
             45.0f, static_cast<float>(state.W) / static_cast<float>(state.H),
             0.01f, 100.0f);
         auto projInv = inverse4x4(proj);
         if (!enableGroundPlane) {
-          time =
-              renderer.draw(*pBVHScene, state.frameBuf, state.camera, projInv);
+          time = renderer.draw(*pScene, state.frameBuf, state.camera, projInv);
         } else {
           time =
               renderer.draw(fullScene, state.frameBuf, state.camera, projInv);
@@ -212,12 +225,6 @@ int main(int, char **) {
                   right.z);
       ImGui::Text("\tWindow Resolution: %dx%d", state.W, state.H);
       ImGui::Text("\tRender Time: %.03fms", time);
-      if (state.meshLoaded) {
-        ImGui::Text(
-            "\tBVH memory usage: %f MiB",
-            static_cast<float>(pBVHScene->nodesCount() * sizeof(BVH8Node)) /
-                static_cast<float>(2 << 20));
-      }
     }
 
     // Rendering
