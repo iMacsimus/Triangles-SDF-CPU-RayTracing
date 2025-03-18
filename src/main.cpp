@@ -16,6 +16,7 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <SDL.h>
 #include <SDL_keycode.h>
 
+#include "octree_raytracing.hpp"
 #include <camera.hpp>
 #include <grid_raytracing.hpp>
 #include <imgui_adaptors.hpp>
@@ -177,6 +178,12 @@ int main(int, char **) {
             std::shared_ptr<SDFGrid> pGrid = std::make_shared<SDFGrid>();
             loadSDFGrid(*pGrid, mesh_path.string());
             pScene = pGrid;
+          } else if (mesh_path.extension() == ".octree") {
+            modelBox.boxMin = float3{-1.0f};
+            modelBox.boxMax = float3{1.0f};
+            std::shared_ptr<SDFOctree> pOctree = std::make_shared<SDFOctree>();
+            loadSDFOctree(*pOctree, mesh_path.string());
+            pScene = pOctree;
           }
 
           *pGroundPlane = Plane(float3{0.0f, 1.0f, 0.0f}, modelBox.boxMin.y);

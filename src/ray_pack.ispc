@@ -211,6 +211,33 @@ struct Box8
   float zMax[8];
 };
 
+struct Box 
+{
+  float boxMin[3];
+  float boxMax[3];
+};
+
+export void divide_box_8(const Box * uniform box, Box8 * uniform result) {
+  uniform float3 boxMin = { box->boxMin[0], box->boxMin[1], box->boxMin[2] };
+  uniform float3 boxMax = { box->boxMax[0], box->boxMax[1], box->boxMax[2] };
+  uniform float3 center = (boxMin+boxMax) / 2.0f;
+  uniform float3 minMaxDiff = center - boxMin;
+
+  foreach(id = 0...8) {
+    int x = id >> 2;
+    int y = (id & 0b11) >> 1;
+    int z = id & 0b1;
+
+    result->xMin[id] = (x == 0) ? boxMin.x : center.x;
+    result->yMin[id] = (y == 0) ? boxMin.y : center.y;
+    result->zMin[id] = (z == 0) ? boxMin.z : center.z;
+
+    result->xMax[id] = result->xMin[id]+minMaxDiff.x;
+    result->yMax[id] = result->yMin[id]+minMaxDiff.y;
+    result->zMax[id] = result->zMin[id]+minMaxDiff.z;
+  }
+}
+
 export
 void intersect_box_8(
     const Box8 * uniform pBoxes,

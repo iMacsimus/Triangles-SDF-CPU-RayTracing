@@ -96,11 +96,7 @@ private:
   std::shared_ptr<IScene> m_pFirst, m_pSecond;
 };
 
-enum class ShadingMode {
-  Normal,
-  Lambert,
-  Color
-};
+enum class ShadingMode { Normal, Lambert, Color };
 
 struct Renderer {
 public:
@@ -188,3 +184,30 @@ private:
   LiteMath::float3 m_basis1;
   LiteMath::float3 m_basis2;
 };
+
+#define SWAP(x, y)                                                             \
+  if (t[x] > t[y]) {                                                           \
+    std::swap(t[x], t[y]);                                                     \
+    std::swap(children[x], children[y]);                                       \
+  }
+inline void sort8(float t[8], size_t children[8]) {
+  SWAP(0, 1);
+  SWAP(2, 3);
+  SWAP(4, 5);
+  SWAP(6, 7);
+  SWAP(0, 2);
+  SWAP(1, 3);
+  SWAP(4, 6);
+  SWAP(5, 7);
+  SWAP(1, 2);
+  SWAP(5, 6);
+  SWAP(0, 4);
+  SWAP(3, 7);
+  SWAP(1, 5);
+  SWAP(2, 6);
+  SWAP(1, 4);
+  SWAP(3, 6);
+  SWAP(2, 4);
+  SWAP(3, 5);
+  SWAP(3, 4);
+}

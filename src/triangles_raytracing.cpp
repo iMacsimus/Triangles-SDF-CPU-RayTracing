@@ -263,33 +263,6 @@ HitInfo BVHBuilder::intersect(const LiteMath::float3 &rayPos,
   return traverseNode(0, rayPos, rayDir, tNear, tFar);
 }
 
-#define SWAP(x, y)                                                             \
-  if (t[x] > t[y]) {                                                           \
-    std::swap(t[x], t[y]);                                                     \
-    std::swap(children[x], children[y]);                                       \
-  }
-void sort8(float t[8], size_t children[8]) {
-  SWAP(0, 1);
-  SWAP(2, 3);
-  SWAP(4, 5);
-  SWAP(6, 7);
-  SWAP(0, 2);
-  SWAP(1, 3);
-  SWAP(4, 6);
-  SWAP(5, 7);
-  SWAP(1, 2);
-  SWAP(5, 6);
-  SWAP(0, 4);
-  SWAP(3, 7);
-  SWAP(1, 5);
-  SWAP(2, 6);
-  SWAP(1, 4);
-  SWAP(3, 6);
-  SWAP(2, 4);
-  SWAP(3, 5);
-  SWAP(3, 4);
-}
-
 HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
                                  LiteMath::float3 rayDir, float tNear,
                                  float tFar) const {
