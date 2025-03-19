@@ -4,6 +4,77 @@
 
 using namespace LiteMath;
 
+constexpr size_t degree = 3;
+
+float getKnot3(size_t i, size_t count) {
+  size_t knotsCount = count + 1 - degree;
+  if (i <= degree) [[unlikely]] {
+    return 0.0f;
+  } else if (i >= count) [[unlikely]] {
+    return 1.0f;
+  } else [[likely]] {
+    return static_cast<float>(i - degree) / static_cast<float>(knotsCount-1);
+  }
+}
+
+size_t getSpan3(float t, size_t count) {
+  size_t knotsCount = count + 1 - degree;
+  size_t span = static_cast<size_t>(t * static_cast<float>(knotsCount - 1));
+  if (span == knotsCount - 1) {
+    span -= 1;
+  }
+  return span + degree;
+}
+
+// values must start at index span-degree = span-3
+float bspline3(const float *values, size_t count, float t) {
+  float left[degree+1] = {};
+  float right[degree+1] = {};
+  size_t span = getSpan3(t, count);
+
+  float N[degree+1] = {};
+  N[0] = 1.0f;
+  for (size_t j = 1; j <= degree; ++j) {
+    left[j] = t - getKnot3(span + 1 - j, count);
+    right[j] = getKnot3(span + j, count) - t;
+    float saved = 0.0f;
+    for (size_t r = 0; r < j; ++r) {
+      float temp = N[r] / (right[r + 1] + left[j - r]);
+      N[r] = saved + right[r + 1] * temp;
+      saved = left[j - r] * temp;
+    }
+    N[j] = saved;
+  }
+
+  float res = 0.0f;
+  for (size_t i = 0; i <= degree; ++i) {
+    res += values[i] * N[i];
+  }
+  return res;
+}
+
+float SDFGrid::sdfBSpline3(LiteMath::float3 point) const noexcept {
+  point = (point + 1.0f) / 2.0f;
+
+  size_t spanX = getSpan3(point.x, size.x);
+  size_t spanY = getSpan3(point.y, size.y);
+  size_t spanZ = getSpan3(point.z, size.z);
+
+  float valuesZ[degree + 1] = {};
+  for (size_t curZ = spanZ - degree; curZ <= spanZ; ++curZ) {
+    float valuesY[degree + 1] = {};
+    for (size_t curY = spanY - degree; curY <= spanY; ++curY) {
+      const float *valuesX =
+          values.data() + (curZ * size.y + curY) * size.x + spanX - degree;
+      valuesY[curY + degree - spanY] = bspline3(valuesX, size.x, point.x);
+    }
+    valuesZ[curZ + degree - spanZ] = bspline3(valuesY, size.y, point.y);
+  }
+
+  float result = bspline3(valuesZ, size.z, point.z);
+  return result;
+}
+
 float SDFGrid::sdf(LiteMath::float3 point) const noexcept {
   point = (point + 1.0f) / 2.0f;
   point *=
@@ -63,27 +134,17 @@ float SDFGrid::sdf(LiteMath::float3 point) const noexcept {
 
 constexpr float NORMAL_EPS = 1e-3f;
 LiteMath::float3 SDFGrid::normal(LiteMath::float3 point) const noexcept {
-  float xLeft =
-      (point.x - NORMAL_EPS >= -1.0f) ? point.x - NORMAL_EPS : point.x;
-  float xRight =
-      (point.x + NORMAL_EPS <= 1.0f) ? point.x + NORMAL_EPS : point.x;
-  float yLeft =
-      (point.y - NORMAL_EPS >= -1.0f) ? point.y - NORMAL_EPS : point.y;
-  float yRight =
-      (point.y + NORMAL_EPS <= 1.0f) ? point.y + NORMAL_EPS : point.y;
-  float zLeft =
-      (point.z - NORMAL_EPS >= -1.0f) ? point.z - NORMAL_EPS : point.z;
-  float zRight =
-      (point.z + NORMAL_EPS <= 1.0f) ? point.z + NORMAL_EPS : point.z;
+  float3 pointMin = clamp(point-NORMAL_EPS, float3{-1.0f}, float3{1.0f});
+  float3 pointMax = clamp(point+NORMAL_EPS, float3{-1.0f}, float3{1.0f});
 
-  float dx = (sdf(float3{xRight, point.y, point.z}) -
-              sdf(float3{xLeft, point.y, point.z}));
+  float dx = (sdfBSpline3(float3{pointMax.x, point.y, point.z}) -
+              sdfBSpline3(float3{pointMin.x, point.y, point.z}));
 
-  float dy = (sdf(float3{point.x, yRight, point.z}) -
-              sdf(float3{point.x, yLeft, point.z}));
+  float dy = (sdfBSpline3(float3{point.x, pointMax.y, point.z}) -
+              sdfBSpline3(float3{point.x, pointMin.y, point.z}));
 
-  float dz = (sdf(float3{point.x, point.y, zRight}) -
-              sdf(float3{point.x, point.y, zLeft}));
+  float dz = (sdfBSpline3(float3{point.x, point.y, pointMax.z}) -
+              sdfBSpline3(float3{point.x, point.y, pointMin.z}));
 
   return normalize(float3{dx, dy, dz});
 }

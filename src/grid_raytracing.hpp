@@ -11,9 +11,10 @@ struct SDFGrid final : IScene {
   LiteMath::uint3 size;
   std::vector<float> values;
   float sdf(LiteMath::uint3 coords) const noexcept {
-    return values[(coords.x * size.y + coords.y) * size.z + coords.z];
+    return values[(coords.z * size.y + coords.y) * size.x + coords.x];
   }
   float sdf(LiteMath::float3 point) const noexcept;
+  float sdfBSpline3(LiteMath::float3 point) const noexcept;
   LiteMath::float3 normal(LiteMath::float3 point) const noexcept;
   virtual HitInfo intersect(const LiteMath::float3 &rayPos,
                             const LiteMath::float3 &rayDir, float tNear,

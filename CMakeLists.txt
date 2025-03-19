@@ -6,7 +6,7 @@ find_package(SDL2 REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(TBB REQUIRED)
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -fsanitize=thread -fsanitize=undefined")
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address -fsanitize=undefined")
 
 add_library(
   LiteMath
