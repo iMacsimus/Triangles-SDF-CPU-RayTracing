@@ -326,15 +326,16 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
     }
     ispc::HitInfo8 hits;
 
-    float3 newRayPos = rayPos + tNear * rayDir;
+    float offset = tNear * 0.99f;
+    float3 newRayPos = rayPos + offset * rayDir;
     ispc::intersect_1_ray_8_triangles(&triagles, newRayPos.M, rayDir.M, &hits);
 
     for (size_t trID = 0; trID < trianglesCount; ++trID) {
-      if (hits.hitten[trID] && (hits.t[trID] > 0.0f) && (hits.t[trID] < tFar-tNear) && (!result.hitten || result.t > hits.t[trID] + tNear)) {
+      if (hits.hitten[trID] && (hits.t[trID] > 0.0f) && (hits.t[trID] < tFar-offset) && (!result.hitten || result.t > hits.t[trID] + offset)) {
         result.hitten = true;
         result.normal = {hits.norm_x[trID], hits.norm_y[trID],
                          hits.norm_z[trID]};
-        result.t = hits.t[trID] + tNear;
+        result.t = hits.t[trID] + offset;
       }
     }
   }
