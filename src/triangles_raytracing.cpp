@@ -1,5 +1,5 @@
-#include <execution>
 #include <chrono>
+#include <execution>
 #include <omp.h>
 #include <random>
 
@@ -32,17 +32,20 @@ BVHBuilder::DivisionResult BVHBuilder::tryDivide(std::vector<uint32_t> &indices,
                                                  uint32_t axes) {
   switch (axes) {
   case 0:
-    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq,
+              reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<0>(m_mesh));
     break;
   case 1:
-    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq,
+              reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<1>(m_mesh));
     break;
   case 2:
-    std::sort(std::execution::par_unseq, reinterpret_cast<Triple *>(indices.data() + start),
+    std::sort(std::execution::par_unseq,
+              reinterpret_cast<Triple *>(indices.data() + start),
               reinterpret_cast<Triple *>(indices.data() + end),
               makeComp<2>(m_mesh));
     break;
@@ -253,7 +256,10 @@ void BVHBuilder::perform(cmesh4::SimpleMesh mesh) {
   m_indicesY.shrink_to_fit();
   m_indicesZ.shrink_to_fit();
   auto e = std::chrono::high_resolution_clock::now();
-  float t = static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(e-b).count())/1e3f;
+  float t = static_cast<float>(
+                std::chrono::duration_cast<std::chrono::microseconds>(e - b)
+                    .count()) /
+            1e3f;
   std::cout << "BVH construction: " << t << "ms" << std::endl;
 }
 
@@ -284,7 +290,7 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
         continue;
 
       HitInfo cur = traverseNode(node.children.offset + childID, rayPos, rayDir,
-                                 tNear, tFar);
+                                 std::max(tNear, t[i]), tFar);
       if (cur.hitten && (!result.hitten || result.t > cur.t)) {
         result = cur;
       }
@@ -319,14 +325,16 @@ HitInfo BVHBuilder::traverseNode(size_t index, LiteMath::float3 rayPos,
       triagles.v2.z[trID] = v2.z;
     }
     ispc::HitInfo8 hits;
-    ispc::intersect_1_ray_8_triangles(&triagles, rayPos.M, rayDir.M, &hits);
+
+    float3 newRayPos = rayPos + tNear * rayDir;
+    ispc::intersect_1_ray_8_triangles(&triagles, newRayPos.M, rayDir.M, &hits);
 
     for (size_t trID = 0; trID < trianglesCount; ++trID) {
-      if (hits.hitten[trID] && (!result.hitten || result.t > hits.t[trID])) {
+      if (hits.hitten[trID] && (hits.t[trID] > 0.0f) && (hits.t[trID] < tFar-tNear) && (!result.hitten || result.t > hits.t[trID] + tNear)) {
         result.hitten = true;
         result.normal = {hits.norm_x[trID], hits.norm_y[trID],
                          hits.norm_z[trID]};
-        result.t = hits.t[trID];
+        result.t = hits.t[trID] + tNear;
       }
     }
   }

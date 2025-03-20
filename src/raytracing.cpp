@@ -36,7 +36,7 @@ Renderer::intersectionColor(const IScene &scene, const float3 &rayPos,
     if (enableShadows) {
       float3 shadowDir = normalize(lightPos - point);
       HitInfo shadowHit =
-          scene.intersect(point + 0.3f*shadowDir, shadowDir, 0.01f, 100.0f);
+          scene.intersect(point, shadowDir, 0.01f, 100.0f);
       lightIsVisible = !shadowHit.hitten;
     }
     if (!lightIsVisible) {
