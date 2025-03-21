@@ -47,6 +47,7 @@ cmesh4::SimpleMesh loadAndScale(std::filesystem::path path);
 int main(int, char **) {
   ApplicationState state;
   std::filesystem::path exec_path;
+  SDFGrid grid;
   {
     char path_cstr[PATH_MAX + 1] = {};
     std::ignore = readlink("/proc/self/exe", path_cstr, PATH_MAX);
@@ -169,6 +170,15 @@ int main(int, char **) {
           if (mesh_path.extension() == ".obj") {
             mesh = loadAndScale(mesh_path);
             modelBox = calc_bbox(mesh);
+            auto b = std::chrono::high_resolution_clock::now();
+            grid = makeGridFromMesh({32, 32, 32}, mesh);
+            saveSDFGrid(grid, "backed.grid");
+            auto e = std::chrono::high_resolution_clock::now();
+            std::cout << "Grid construction: "
+                      << std::chrono::duration_cast<std::chrono::milliseconds>(
+                             e - b)
+                             .count()
+                      << std::endl;
             auto pBVHScene = std::make_shared<BVHBuilder>();
             pBVHScene->perform(std::move(mesh));
             pScene = pBVHScene;
@@ -328,7 +338,7 @@ cmesh4::SimpleMesh loadAndScale(std::filesystem::path path) {
 
   auto bbox = calc_bbox(mesh);
   auto center = (bbox.boxMin + bbox.boxMax) / 2.0f;
-  auto scale = length(bbox.boxMax - center);
+  auto scale = hmax(bbox.boxMax - center);
   for (auto &v : mesh.vPos4f) {
     auto w = v.w;
     v /= w;

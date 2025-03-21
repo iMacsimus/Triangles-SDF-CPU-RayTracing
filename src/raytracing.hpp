@@ -26,6 +26,12 @@ inline LiteMath::BBox3f update_box(LiteMath::BBox3f box, LiteMath::float4 v) {
   return box;
 }
 
+inline LiteMath::BBox3f update_box(LiteMath::BBox3f box, LiteMath::float3 v) {
+  box.boxMin = LiteMath::min(box.boxMin, v);
+  box.boxMax = LiteMath::max(box.boxMax, v);
+  return box;
+}
+
 inline LiteMath::BBox3f calc_bbox(const cmesh4::SimpleMesh &mesh) {
   LiteMath::BBox3f bbox;
   bbox.boxMin = LiteMath::float3{std::numeric_limits<float>::infinity()};
