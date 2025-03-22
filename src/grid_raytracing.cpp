@@ -128,6 +128,8 @@ HitInfo SDFGrid::intersect(const LiteMath::float3 &rayPos,
 void loadSDFGrid(SDFGrid &scene, const std::string &path) {
   std::ifstream fs(path, std::ios::binary);
   fs.read((char *)&scene.size, 3 * sizeof(unsigned));
+  std::cout << "Grid Size: " << scene.size.x << "x" << scene.size.y << "x"
+            << scene.size.z << std::endl;
   scene.values.resize(scene.size.x * scene.size.y * scene.size.z);
   fs.read((char *)scene.values.data(),
           scene.size.x * scene.size.y * scene.size.z * sizeof(float));
@@ -203,7 +205,7 @@ inline void sort3(float aa[3]) {
 }
 
 void redistancing(SDFGrid &grid) {
-  float h = 1.0f;
+  float h = 2.0f / static_cast<float>(hmax(grid.size - 1));
   float f = 1.0f;
   constexpr float eps = 1e-8f;
 
@@ -226,7 +228,7 @@ void redistancing(SDFGrid &grid) {
     for (int x = dirX[0]; x != dirX[1]; x += dirX[2]) {
       for (int y = dirY[0]; y != dirY[1]; y += dirY[2]) {
         for (int z = dirZ[0]; z != dirZ[1]; z += dirZ[2]) {
-          int flatCoord = (z * ssize.y + ssize.y) * ssize.x + x;
+          int flatCoord = (z * ssize.y + y) * ssize.x + x;
           if (frozen[flatCoord]) {
             continue;
           }
@@ -239,12 +241,12 @@ void redistancing(SDFGrid &grid) {
           int zm1 = clamp(z - 1, 0, ssize.z - 1);
           int zp1 = clamp(z + 1, 0, ssize.z - 1);
 
-          aa[0] =
-              std::min(grid.sdf(int3{xm1, y, z}), grid.sdf(int3{xp1, y, z}));
-          aa[1] =
-              std::min(grid.sdf(int3{x, ym1, z}), grid.sdf(int3{x, yp1, z}));
-          aa[2] =
-              std::min(grid.sdf(int3{x, y, zm1}), grid.sdf(int3{x, y, zp1}));
+          aa[0] = std::min(std::abs(grid.sdf(int3{xm1, y, z})),
+                           std::abs(grid.sdf(int3{xp1, y, z})));
+          aa[1] = std::min(std::abs(grid.sdf(int3{x, ym1, z})),
+                           std::abs(grid.sdf(int3{x, yp1, z})));
+          aa[2] = std::min(std::abs(grid.sdf(int3{x, y, zm1})),
+                           std::abs(grid.sdf(int3{x, y, zp1})));
           sort3(aa);
 
           float d_curr = aa[0] + h * f;
@@ -269,8 +271,17 @@ void redistancing(SDFGrid &grid) {
               d_new = ((-b + D) > (-b - D) ? (-b + D) : (-b - D)) / (2.0f * a);
             }
           }
-          if (std::abs(grid.values[flatCoord]) > std::abs(d_new)) {
-            grid.values[flatCoord] = d_new;
+          if (std::abs(grid.values[flatCoord]) > d_new) {
+            float sign = -1.0f;
+            if (grid.sdf(int3{xm1, y, z}) > 0 ||
+                grid.sdf(int3{xp1, y, z}) > 0 ||
+                grid.sdf(int3{x, ym1, z}) > 0 ||
+                grid.sdf(int3{x, yp1, z}) > 0 ||
+                grid.sdf(int3{x, y, zm1}) > 0 ||
+                grid.sdf(int3{x, y, zp1}) > 0) {
+              sign = 1.0f;
+            }
+            grid.values[flatCoord] = d_new * sign;
           }
         }
       }
@@ -288,20 +299,22 @@ SDFGrid makeGridFromMesh(LiteMath::uint3 size, const cmesh4::SimpleMesh &mesh) {
                                      std::numeric_limits<float>::infinity());
 
   for (size_t trID = 0; trID < mesh.TrianglesNum(); ++trID) {
-    float3 vertices[3] = {to_float3(mesh.vPos4f[mesh.indices[trID / 3]]),
-                          to_float3(mesh.vPos4f[mesh.indices[trID / 3 + 1]]),
-                          to_float3(mesh.vPos4f[mesh.indices[trID / 3 + 2]])};
+    float3 vertices[3] = {to_float3(mesh.vPos4f[mesh.indices[trID * 3]]),
+                          to_float3(mesh.vPos4f[mesh.indices[trID * 3 + 1]]),
+                          to_float3(mesh.vPos4f[mesh.indices[trID * 3 + 2]])};
 
     BBox3f trBox;
     trBox.boxMin = float3{std::numeric_limits<float>::infinity()};
     trBox.boxMax = -trBox.boxMin;
 
     trBox = update_box(trBox, vertices[0]);
-    trBox = update_box(trBox, vertices[0]);
-    trBox = update_box(trBox, vertices[0]);
+    trBox = update_box(trBox, vertices[1]);
+    trBox = update_box(trBox, vertices[2]);
 
     float3 minCoordf = floor((trBox.boxMin + 1.0f) / 2.0f * (sizef - 1.0f));
+    minCoordf = clamp(minCoordf-1.0f, float3{0.0f}, sizef-1.0f);
     float3 maxCoordf = ceil((trBox.boxMax + 1.0f) / 2.0f * (sizef - 1.0f));
+    maxCoordf = clamp(maxCoordf+1.0f, float3{0.0f}, sizef-1.0f);
 
     uint3 minCoord = {static_cast<uint32_t>(minCoordf.x),
                       static_cast<uint32_t>(minCoordf.y),
@@ -310,7 +323,7 @@ SDFGrid makeGridFromMesh(LiteMath::uint3 size, const cmesh4::SimpleMesh &mesh) {
                       static_cast<uint32_t>(maxCoordf.y),
                       static_cast<uint32_t>(maxCoordf.z)};
 
-    uint3 areaSize = maxCoord - minCoord;
+    uint3 areaSize = maxCoord - minCoord + 1;
     uint32_t areaCount = areaSize.x * areaSize.y * areaSize.z;
     for (uint32_t flatCoord = 0; flatCoord < areaCount; ++flatCoord) {
       uint3 coord = {};
@@ -329,13 +342,13 @@ SDFGrid makeGridFromMesh(LiteMath::uint3 size, const cmesh4::SimpleMesh &mesh) {
           closestPointTriangle(point, vertices[0], vertices[1], vertices[2]);
 
       float3 pointToTriangle = trPoint - point;
-      // float3 normal = cross(vertices[1]-vertices[0],
-      // vertices[2]-vertices[0]); float sign = dot(normal, -pointToTriangle)
-      // > 0 ? 1.0f : -1.0f;
+      float3 normal =
+          cross(vertices[1] - vertices[0], vertices[2] - vertices[0]);
+      float sign = dot(normal, -pointToTriangle) >= 0 ? 1.0f : -1.0f;
       float distance = length(pointToTriangle);
 
       if (std::abs(result.sdf(coord)) > distance) {
-        result.sdf(coord) = distance;
+        result.sdf(coord) = distance * sign;
       }
     }
   }

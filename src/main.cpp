@@ -23,6 +23,7 @@ static_assert(false, "This code is valid for Ubuntu x64 linux");
 #include <mesh.h>
 #include <sdl_adaptors.hpp>
 #include <triangles_raytracing.hpp>
+#include <ray_pack_ispc.h>
 
 using namespace cmesh4;
 using namespace LiteMath;
@@ -171,7 +172,7 @@ int main(int, char **) {
             mesh = loadAndScale(mesh_path);
             modelBox = calc_bbox(mesh);
             auto b = std::chrono::high_resolution_clock::now();
-            grid = makeGridFromMesh({32, 32, 32}, mesh);
+            grid = makeGridFromMesh({129, 129, 129}, mesh);
             saveSDFGrid(grid, "backed.grid");
             auto e = std::chrono::high_resolution_clock::now();
             std::cout << "Grid construction: "
@@ -338,7 +339,7 @@ cmesh4::SimpleMesh loadAndScale(std::filesystem::path path) {
 
   auto bbox = calc_bbox(mesh);
   auto center = (bbox.boxMin + bbox.boxMax) / 2.0f;
-  auto scale = hmax(bbox.boxMax - center);
+  auto scale = hmax(bbox.boxMax - center) / 0.99f;
   for (auto &v : mesh.vPos4f) {
     auto w = v.w;
     v /= w;
